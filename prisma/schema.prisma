@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  AGENT
+}
+
+model User {
+  id       Int     @id @default(autoincrement())
+  name     String?
+  email    String  @unique
+  password String
+  role     Role
+  active    Boolean  @default(true)
+  // Relations
+  agentLeads      AgentLead[]
+  commissions     AgentCommission[]
+  createdGlamps   Glamp[]           @relation("CreatedGlamps")
+  createdBookings Booking[]         @relation("CreatedBookings")
+  staffMembers    Staff[]           @relation("StaffManaged")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Glamp {
+  id                 Int      @id @default(autoincrement())
+  name               String
+  description        String?
+  basePrice          Int
+  weekendPrice       Int?
+  seasonalMultiplier Float?   @default(1.0)
+  capacity           Int
+  amenities          Json?
+  images             String[]
+  status             String   @default("ACTIVE")
+
+  // Relations
+  createdBy   User? @relation("CreatedGlamps", fields: [createdById], references: [id])
+  createdById Int?
+
+  bookings Booking[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Booking {
+  id            Int      @id @default(autoincrement())
+  customerName  String
+  customerPhone String
+  customerEmail String?
+  checkIn       DateTime
+  nights        Int
+  totalAmount   Int
+  paidAmount    Int
+  status        String   @default("PENDING")
+
+  // Relations
+  glamp   Glamp @relation(fields: [glampId], references: [id])
+  glampId Int
+
+  createdBy   User? @relation("CreatedBookings", fields: [createdById], references: [id])
+  createdById Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/**
+ * model AgentLead {
+ * id        Int      @id @default(autoincrement())
+ * fullName  String
+ * phone     String
+ * status    String   @default("PENDING") // PENDING | IN_PROGRESS | CONVERTED | LOST
+ * notes     String?
+ * agent     User     @relation(fields: [agentId], references: [id])
+ * agentId   Int
+ * createdAt DateTime @default(now())
+ * updatedAt DateTime @updatedAt
+ * }
+ */
+
+model AgentLead {
+  id       Int     @id @default(autoincrement())
+  fullName String
+  phone    String
+  status   String  @default("PENDING")
+  notes    String?
+
+  agent   User @relation(fields: [agentId], references: [id])
+  agentId Int
+
+  commission AgentCommission? // <-- REQUIRED BACK-RELATION
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/**
+ * model AgentCommission {
+ * id         Int      @id @default(autoincrement())
+ * amount     Int
+ * status     String   @default("UNPAID") // UNPAID | PAID
+ * agent      User     @relation(fields: [agentId], references: [id])
+ * agentId    Int
+ * relatedLead AgentLead? @relation(fields: [leadId], references: [id])
+ * leadId     Int?
+ * createdAt DateTime @default(now())
+ * }
+ */
+
+model AgentCommission {
+  id     Int    @id @default(autoincrement())
+  amount Int
+  status String @default("UNPAID") // UNPAID | PAID
+
+  agent   User @relation(fields: [agentId], references: [id])
+  agentId Int
+
+  relatedLead AgentLead? @relation(fields: [leadId], references: [id])
+  leadId      Int?       @unique // <-- REQUIRED FIX ✔️
+
+  createdAt DateTime @default(now())
+}
+
+model Staff {
+  id       Int     @id @default(autoincrement())
+  fullName String
+  role     String
+  phone    String?
+
+  managedBy   User? @relation("StaffManaged", fields: [managedById], references: [id])
+  managedById Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FinanceExpense {
+  id       Int      @id @default(autoincrement())
+  title    String
+  amount   Int
+  category String?
+  date     DateTime @default(now())
+  notes    String?
+}
+
+model FinanceIncome {
+  id     Int      @id @default(autoincrement())
+  title  String
+  amount Int
+  source String? // e.g. "Booking" or "Glamps Sale"
+  date   DateTime @default(now())
+  notes  String?
+}

@@ -1,0 +1,27 @@
+node_modules
+# Keep environment variables out of version control
+.env
+
+/generated/prisma
+
+# VS Code Local History (can cause OOM issues)
+.history/
+
+# Coverage reports
+.early.coverage/
+coverage/
+.nyc_output/
+
+# Build outputs
+dist/
+build/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json

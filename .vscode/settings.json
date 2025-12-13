@@ -1,0 +1,83 @@
+{
+  // Memory optimization settings to prevent OOM crashes
+  
+  // Exclude heavy directories from file watching and search
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/dist/**": true,
+    "**/build/**": true,
+    "**/.next/**": true,
+    "**/.history/**": true,
+    "**/generated/**": true,
+    "**/.early.coverage/**": true,
+    "**/coverage/**": true,
+    "**/.nyc_output/**": true
+  },
+
+  // Exclude from search to reduce memory usage
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/package-lock.json": true,
+    "**/.history": true,
+    "**/generated": true,
+    "**/.early.coverage": true,
+    "**/coverage": true,
+    "**/.git": true
+  },
+
+  // Exclude from file explorer
+  "files.exclude": {
+    "**/.history": true,
+    "**/.early.coverage": true,
+    "**/generated": true
+  },
+
+  // Limit TypeScript/JavaScript memory usage
+  "typescript.tsserver.maxTsServerMemory": 2048,
+  "javascript.suggest.enabled": false,
+  "typescript.suggest.enabled": true,
+
+  // Disable automatic type acquisition
+  "typescript.disableAutomaticTypeAcquisition": true,
+
+  // Limit number of files watched
+  "files.maxMemoryForLargeFilesMB": 4096,
+
+  // Reduce auto-save frequency
+  "files.autoSave": "onFocusChange",
+
+  // Disable Git decorations for large repos (if needed)
+  "git.decorations.enabled": true,
+  "git.ignoreLimitWarning": true,
+
+  // Disable unused features to save memory
+  "editor.codeLens": false,
+  "editor.hover.delay": 500,
+  "editor.quickSuggestions": {
+    "other": true,
+    "comments": false,
+    "strings": false
+  },
+
+  // Reduce validation frequency
+  "javascript.validate.enable": true,
+  "typescript.validate.enable": true,
+
+  // Limit references search
+  "references.preferredLocation": "view",
+
+  // Reduce file nesting display
+  "explorer.fileNesting.enabled": false,
+
+  // Prisma-specific optimizations
+  "prisma.trace.server": "off",
+  
+  // Extensions that might cause memory issues
+  "eslint.enable": true,
+  "eslint.lintTask.enable": false,
+  
+  // Terminal settings
+  "terminal.integrated.enablePersistentSessions": false
+}

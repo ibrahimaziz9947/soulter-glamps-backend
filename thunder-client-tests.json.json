@@ -1,0 +1,521 @@
+{
+  "clientName": "Thunder Client",
+  "collectionName": "Soulter Backend API Tests",
+  "collectionId": "soulter-backend-tests",
+  "dateExported": "2025-12-08",
+  "version": "1.0",
+  "folders": [
+    {
+      "name": "1. Authentication",
+      "requests": [
+        {
+          "name": "Login - SUPER_ADMIN",
+          "method": "POST",
+          "url": "{{BASE_URL}}/api/auth/login",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"email\": \"super@soulter.com\",\n  \"password\": \"super123\"\n}"
+          },
+          "tests": [
+            {
+              "type": "res-code",
+              "value": "200"
+            },
+            {
+              "type": "json-query",
+              "value": "$.success",
+              "expected": "true"
+            }
+          ]
+        },
+        {
+          "name": "Login - ADMIN",
+          "method": "POST",
+          "url": "{{BASE_URL}}/api/auth/login",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"email\": \"admin@soulter.com\",\n  \"password\": \"admin123\"\n}"
+          }
+        },
+        {
+          "name": "Login - AGENT",
+          "method": "POST",
+          "url": "{{BASE_URL}}/api/auth/login",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"email\": \"agent@soulter.com\",\n  \"password\": \"agent123\"\n}"
+          }
+        },
+        {
+          "name": "Create User (SUPER_ADMIN)",
+          "method": "POST",
+          "url": "{{BASE_URL}}/api/auth/create-user",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_SUPER_ADMIN}}"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"email\": \"newadmin@soulter.com\",\n  \"password\": \"password123\",\n  \"name\": \"New Admin\",\n  \"role\": \"ADMIN\"\n}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Glamps",
+      "requests": [
+        {
+          "name": "Get All Glamps (Public)",
+          "method": "GET",
+          "url": "{{BASE_URL}}/api/glamps?page=1&limit=10",
+          "headers": []
+        },
+        {
+          "name": "Get Glamp by ID (Public)",
+          "method": "GET",
+          "url": "{{BASE_URL}}/api/glamps/1",
+          "headers": []
+        },
+        {
+          "name": "Create Glamp (ADMIN)",
+          "method": "POST",
+          "url": "{{BASE_URL}}/api/glamps",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_ADMIN}}"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"name\": \"Luxury Tent\",\n  \"description\": \"Beautiful glamping tent with mountain view\",\n  \"basePrice\": 150000,\n  \"weekendPrice\": 200000,\n  \"seasonalMultiplier\": 1.2,\n  \"capacity\": 4,\n  \"amenities\": {\"wifi\": true, \"ac\": true, \"kitchen\": false},\n  \"images\": [\"tent1.jpg\", \"tent2.jpg\"],\n  \"status\": \"ACTIVE\"\n}"
+          }
+        },
+        {
+          "name": "Update Glamp (ADMIN)",
+          "method": "PUT",
+          "url": "{{BASE_URL}}/api/glamps/1",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_ADMIN}}"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"basePrice\": 175000,\n  \"weekendPrice\": 225000\n}"
+          }
+        },
+        {
+          "name": "Delete Glamp (ADMIN)",
+          "method": "DELETE",
+          "url": "{{BASE_URL}}/api/glamps/1",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_ADMIN}}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Bookings",
+      "requests": [
+        {
+          "name": "Create Booking (Public)",
+          "method": "POST",
+          "url": "{{BASE_URL}}/api/bookings",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"customerName\": \"John Doe\",\n  \"customerPhone\": \"08123456789\",\n  \"customerEmail\": \"john@example.com\",\n  \"checkIn\": \"2025-12-20\",\n  \"nights\": 3,\n  \"glampId\": 1,\n  \"totalAmount\": 450000,\n  \"paidAmount\": 100000\n}"
+          }
+        },
+        {
+          "name": "Get All Bookings (ADMIN)",
+          "method": "GET",
+          "url": "{{BASE_URL}}/api/bookings?page=1&limit=10&status=PENDING",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_ADMIN}}"
+            }
+          ]
+        },
+        {
+          "name": "Get Booking by ID",
+          "method": "GET",
+          "url": "{{BASE_URL}}/api/bookings/1",
+          "headers": []
+        },
+        {
+          "name": "Update Booking Status (ADMIN)",
+          "method": "PATCH",
+          "url": "{{BASE_URL}}/api/bookings/1/status",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_ADMIN}}"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"status\": \"CONFIRMED\"\n}"
+          }
+        },
+        {
+          "name": "Get Agent Bookings (AGENT)",
+          "method": "GET",
+          "url": "{{BASE_URL}}/api/bookings/my-bookings?page=1&limit=10",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_AGENT}}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Leads",
+      "requests": [
+        {
+          "name": "Create Lead (AGENT)",
+          "method": "POST",
+          "url": "{{BASE_URL}}/api/leads",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_AGENT}}"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"fullName\": \"Jane Smith\",\n  \"phone\": \"08198765432\",\n  \"notes\": \"Interested in weekend booking\"\n}"
+          }
+        },
+        {
+          "name": "Get Agent Leads (AGENT)",
+          "method": "GET",
+          "url": "{{BASE_URL}}/api/leads/my-leads?page=1&limit=10",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_AGENT}}"
+            }
+          ]
+        },
+        {
+          "name": "Get All Leads (ADMIN)",
+          "method": "GET",
+          "url": "{{BASE_URL}}/api/leads?page=1&limit=10&status=PENDING",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_ADMIN}}"
+            }
+          ]
+        },
+        {
+          "name": "Update Lead Status (AGENT)",
+          "method": "PATCH",
+          "url": "{{BASE_URL}}/api/leads/1/status",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_AGENT}}"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"status\": \"IN_PROGRESS\",\n  \"notes\": \"Contacted customer, negotiating dates\"\n}"
+          }
+        },
+        {
+          "name": "Convert Lead to Booking (AGENT)",
+          "method": "POST",
+          "url": "{{BASE_URL}}/api/leads/1/convert",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_AGENT}}"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"customerEmail\": \"jane@example.com\",\n  \"checkIn\": \"2025-12-25\",\n  \"nights\": 2,\n  \"glampId\": 1,\n  \"totalAmount\": 300000,\n  \"paidAmount\": 150000\n}"
+          }
+        },
+        {
+          "name": "Assign Lead to Agent (ADMIN)",
+          "method": "PATCH",
+          "url": "{{BASE_URL}}/api/leads/1/assign",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_ADMIN}}"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"agentId\": 2\n}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Staff",
+      "requests": [
+        {
+          "name": "Get All Staff (ADMIN)",
+          "method": "GET",
+          "url": "{{BASE_URL}}/api/staff?page=1&limit=10",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_ADMIN}}"
+            }
+          ]
+        },
+        {
+          "name": "Create Staff (SUPER_ADMIN)",
+          "method": "POST",
+          "url": "{{BASE_URL}}/api/staff",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_SUPER_ADMIN}}"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"fullName\": \"Alice Johnson\",\n  \"role\": \"Housekeeper\",\n  \"phone\": \"08111222333\"\n}"
+          }
+        },
+        {
+          "name": "Update Staff (SUPER_ADMIN)",
+          "method": "PUT",
+          "url": "{{BASE_URL}}/api/staff/1",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_SUPER_ADMIN}}"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"phone\": \"08111222444\"\n}"
+          }
+        },
+        {
+          "name": "Delete Staff (SUPER_ADMIN)",
+          "method": "DELETE",
+          "url": "{{BASE_URL}}/api/staff/1",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_SUPER_ADMIN}}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. Finance",
+      "requests": [
+        {
+          "name": "Record Payment (ADMIN)",
+          "method": "POST",
+          "url": "{{BASE_URL}}/api/finance/payments",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_ADMIN}}"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"title\": \"Booking Payment - John Doe\",\n  \"amount\": 450000,\n  \"source\": \"Booking\",\n  \"notes\": \"Full payment for booking #123\"\n}"
+          }
+        },
+        {
+          "name": "Get Payment History (ADMIN)",
+          "method": "GET",
+          "url": "{{BASE_URL}}/api/finance/payments?page=1&limit=10",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_ADMIN}}"
+            }
+          ]
+        },
+        {
+          "name": "Record Expense (ADMIN)",
+          "method": "POST",
+          "url": "{{BASE_URL}}/api/finance/expenses",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_ADMIN}}"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"title\": \"Tent Maintenance\",\n  \"amount\": 50000,\n  \"category\": \"Maintenance\",\n  \"notes\": \"Cleaning and repairs\"\n}"
+          }
+        },
+        {
+          "name": "Get Expense History (ADMIN)",
+          "method": "GET",
+          "url": "{{BASE_URL}}/api/finance/expenses?page=1&limit=10",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_ADMIN}}"
+            }
+          ]
+        },
+        {
+          "name": "Record Commission (ADMIN)",
+          "method": "POST",
+          "url": "{{BASE_URL}}/api/finance/commissions",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_ADMIN}}"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"agentId\": 4,\n  \"amount\": 45000,\n  \"leadId\": 1\n}"
+          }
+        },
+        {
+          "name": "Get Commission Report (ADMIN)",
+          "method": "GET",
+          "url": "{{BASE_URL}}/api/finance/commissions?page=1&limit=10&status=UNPAID",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_ADMIN}}"
+            }
+          ]
+        },
+        {
+          "name": "Update Commission Status (ADMIN)",
+          "method": "PATCH",
+          "url": "{{BASE_URL}}/api/finance/commissions/1/status",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_ADMIN}}"
+            }
+          ],
+          "body": {
+            "type": "json",
+            "raw": "{\n  \"status\": \"PAID\"\n}"
+          }
+        },
+        {
+          "name": "Get Financial Summary (ADMIN)",
+          "method": "GET",
+          "url": "{{BASE_URL}}/api/finance/summary?fromDate=2025-01-01&toDate=2025-12-31",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{TOKEN_ADMIN}}"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "environment": {
+    "BASE_URL": "http://localhost:3000",
+    "TOKEN_SUPER_ADMIN": "paste_token_from_super_admin_login",
+    "TOKEN_ADMIN": "paste_token_from_admin_login",
+    "TOKEN_AGENT": "paste_token_from_agent_login"
+  }
+}
