@@ -30,12 +30,26 @@ console.log("=== 7. express.urlencoded() ENABLED ===");
 app.use(cookieParser());
 console.log("=== 8. cookieParser() ENABLED ===");
 
-// Step 4: CORS
+// Step 4: CORS - Allow both 3000 and 3001 for flexibility
+const allowedOrigins = ['http://localhost:3000', 'http://localhost:3001'];
 app.use(cors({
-  origin: 'http://localhost:3000',
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('❌ CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Set-Cookie']
 }));
-console.log("=== 9. CORS ENABLED ===");
+console.log("=== 9. CORS ENABLED for origins:", allowedOrigins, "===");
 
 // Test route (keep for debugging)
 app.get('/__ping', (req, res) => {

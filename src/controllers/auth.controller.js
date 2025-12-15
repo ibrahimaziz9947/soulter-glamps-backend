@@ -80,20 +80,27 @@ export const login = async (req, res) => {
 
     // Sign JWT token
     const token = signToken({ userId: user.id });
-    console.log('✅ JWT token generated');
+    console.log('✅ JWT token generated for user:', user.email, 'Role:', user.role);
 
     // Set HTTP-only cookie
-    res.cookie('auth_token', token, {
+    const cookieOptions = {
       httpOnly: true,
       secure: false, // Set to true in production with HTTPS
       sameSite: 'lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
+    };
+    
+    res.cookie('auth_token', token, cookieOptions);
+    
     console.log('✅ Cookie set: auth_token');
+    console.log('   User Role:', user.role);
+    console.log('   User Email:', user.email);
+    console.log('   Cookie Options:', cookieOptions);
+    console.log('   Token (first 20 chars):', token.substring(0, 20) + '...');
 
     // Return success response
-    console.log('🟢 Sending success response');
+    console.log('🟢 Sending success response for role:', user.role);
     return res.status(200).json({
       success: true,
       token,
