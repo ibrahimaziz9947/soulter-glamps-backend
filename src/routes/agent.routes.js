@@ -1,16 +1,18 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
-import { requireAdmin, requireSuperAdmin } from '../middleware/roles.js';
+import { requireAgent } from '../middleware/roles.js';
+import * as bookingController from '../controllers/booking.controller.js';
+import * as commissionController from '../controllers/commission.controller.js';
 
 const router = express.Router();
 
-// Placeholder for agent routes
-// These will be implemented later
+// Agent-specific routes for viewing their own bookings and commissions
 
-// Example protected routes:
-// router.get('/agents', authRequired, requireAdmin, getAgents);
-// router.post('/agents', authRequired, requireSuperAdmin, createAgent);
-// router.put('/agents/:id', authRequired, requireAdmin, updateAgent);
-// router.delete('/agents/:id', authRequired, requireSuperAdmin, deleteAgent);
+// Get bookings referred by the agent
+router.get('/bookings', authRequired, requireAgent, bookingController.getAgentBookings);
+
+// Get commissions earned by the agent
+router.get('/commissions', authRequired, requireAgent, commissionController.getMyCommissions);
+router.get('/commissions/summary', authRequired, requireAgent, commissionController.getMyCommissionSummary);
 
 export default router;

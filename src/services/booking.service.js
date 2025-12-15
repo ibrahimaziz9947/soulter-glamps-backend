@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import { NotFoundError, ValidationError, ForbiddenError } from '../utils/errors.js';
+import { createCommissionForBooking } from './commission.service.js';
 
 /**
  * Create a new booking (public - no login required)
@@ -15,7 +16,8 @@ export const createBooking = async (bookingData, userId = null) => {
     nights, 
     glampId, 
     totalAmount, 
-    paidAmount 
+    paidAmount,
+    agentId // Optional: agent who referred this booking
   } = bookingData;
 
   // Use checkInDate if provided, otherwise fall back to checkIn
@@ -102,6 +104,7 @@ export const createBooking = async (bookingData, userId = null) => {
       paidAmount: paidAmount ? parseFloat(paidAmount) : 0,
       glampId,
       createdById: userId,
+      agentId: agentId ? parseInt(agentId) : null, // Link to agent if provided
       status: 'PENDING',
     },
     include: {
@@ -110,6 +113,13 @@ export const createBooking = async (bookingData, userId = null) => {
           id: true,
           name: true,
           basePrice: true,
+        },
+      },
+      agent: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
         },
       },
     },
@@ -149,8 +159,25 @@ export const updateBookingStatus = async (bookingId, status, userId) => {
           email: true,
         },
       },
+      agent: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
     },
   });
+
+  // Create commission when booking is CONFIRMED or COMPLETED
+  if ((status === 'CONFIRMED' || status === 'COMPLETED') && updatedBooking.agentId) {
+    try {
+      await createCommissionForBooking(bookingId);
+    } catch (error) {
+      console.error('Error creating commission:', error);
+      // Don't fail the booking update if commission creation fails
+    }
+  }
 
   return updatedBooking;
 };
@@ -180,6 +207,13 @@ export const updateBooking = async (bookingId, updates) => {
           email: true,
         },
       },
+      agent: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
     },
   });
 
@@ -202,6 +236,13 @@ export const getBookingById = async (bookingId, user = null) => {
           role: true,
         },
       },
+      agent: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
     },
   });
 
@@ -209,9 +250,9 @@ export const getBookingById = async (bookingId, user = null) => {
     throw new NotFoundError('Booking');
   }
 
-  // Agents can only view their own bookings
-  if (user && user.role === 'AGENT' && booking.createdById !== user.id) {
-    throw new ForbiddenError('You can only view your own bookings');
+  // Agents can only view bookings they referred
+  if (user && user.role === 'AGENT' && booking.agentId !== user.id) {
+    throw new ForbiddenError('You can only view bookings you referred');
   }
 
   return booking;
@@ -271,6 +312,13 @@ export const getAllBookings = async (filters = {}, pagination = {}) => {
             email: true,
           },
         },
+        agent: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     }),
@@ -281,14 +329,14 @@ export const getAllBookings = async (filters = {}, pagination = {}) => {
 };
 
 /**
- * Get agent's bookings
+ * Get agent's bookings (bookings they referred)
  * @access AGENT
  */
 export const getAgentBookings = async (agentId, filters = {}, pagination = {}) => {
   const { skip, take } = pagination;
   const { status } = filters;
 
-  const where = { createdById: agentId };
+  const where = { agentId: agentId }; // Changed from createdById to agentId
 
   if (status) {
     where.status = status;

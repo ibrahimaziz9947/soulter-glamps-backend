@@ -25,6 +25,7 @@ model User {
   commissions     AgentCommission[]
   createdGlamps   Glamp[]           @relation("CreatedGlamps")
   createdBookings Booking[]         @relation("CreatedBookings")
+  agentBookings   Booking[]         @relation("AgentBookings")
   staffMembers    Staff[]           @relation("StaffManaged")
 
   createdAt DateTime @default(now())
@@ -62,7 +63,7 @@ model Booking {
   nights        Int
   totalAmount   Int
   paidAmount    Int
-  status        String   @default("PENDING")
+  status        String   @default("PENDING") // PENDING | CONFIRMED | CANCELLED | COMPLETED
 
   // Relations
   glamp   Glamp @relation(fields: [glampId], references: [id])
@@ -70,6 +71,13 @@ model Booking {
 
   createdBy   User? @relation("CreatedBookings", fields: [createdById], references: [id])
   createdById Int?
+
+  // Agent who referred this booking (optional)
+  agent   User? @relation("AgentBookings", fields: [agentId], references: [id])
+  agentId Int?
+
+  // Commission relationship
+  commission AgentCommission?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -126,8 +134,13 @@ model AgentCommission {
   agent   User @relation(fields: [agentId], references: [id])
   agentId Int
 
+  // Commission is now linked to Booking instead of Lead
+  booking   Booking @relation(fields: [bookingId], references: [id])
+  bookingId Int     @unique
+
+  // Keep old lead relation for historical data (optional, can be removed later)
   relatedLead AgentLead? @relation(fields: [leadId], references: [id])
-  leadId      Int?       @unique // <-- REQUIRED FIX ✔️
+  leadId      Int?       @unique
 
   createdAt DateTime @default(now())
 }

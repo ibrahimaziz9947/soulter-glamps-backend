@@ -1,24 +1,18 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { requireAdmin, requireAgent } from '../middleware/roles.js';
+import * as commissionController from '../controllers/commission.controller.js';
 
 const router = express.Router();
 
-// Example routes - to be implemented
+// Agent routes - view own commissions
+router.get('/my-commissions', authRequired, requireAgent, commissionController.getMyCommissions);
+router.get('/my-commissions/summary', authRequired, requireAgent, commissionController.getMyCommissionSummary);
 
-// Get all commissions for logged-in agent
-// router.get('/commissions', authRequired, requireAgent, getMyCommissions);
-
-// Get all commissions (ADMIN+)
-// router.get('/commissions/all', authRequired, requireAdmin, getAllCommissions);
-
-// Create commission (ADMIN+)
-// router.post('/commissions', authRequired, requireAdmin, createCommission);
-
-// Update commission status (ADMIN+)
-// router.patch('/commissions/:id/status', authRequired, requireAdmin, updateCommissionStatus);
-
-// Get commission by ID
-// router.get('/commissions/:id', authRequired, requireAgent, getCommissionById);
+// Admin routes - manage all commissions
+router.get('/', authRequired, requireAdmin, commissionController.getAllCommissions);
+router.get('/agent/:agentId/summary', authRequired, requireAdmin, commissionController.getAgentCommissionSummary);
+router.get('/:id', authRequired, commissionController.getCommissionById); // Accessible by agent (own) or admin (all)
+router.patch('/:id/status', authRequired, requireAdmin, commissionController.updateCommissionStatus);
 
 export default router;

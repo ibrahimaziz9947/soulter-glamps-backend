@@ -3,19 +3,15 @@ import { comparePassword, hashPassword } from '../utils/hash.js';
 import { signToken } from '../utils/jwt.js';
 
 /**
- * Login user
+ * Helper function for role-specific login
  */
-export const login = async (req, res) => {
+const loginWithRole = async (req, res, expectedRole) => {
   try {
-    // 🔍 DEBUG: Log incoming request
     console.log('========================================');
-    console.log('🔵 LOGIN REQUEST RECEIVED');
+    console.log(`🔵 ${expectedRole} LOGIN REQUEST RECEIVED`);
     console.log('Method:', req.method);
     console.log('Body:', JSON.stringify(req.body, null, 2));
-    console.log('Headers:', {
-      origin: req.headers.origin,
-      'content-type': req.headers['content-type'],
-    });
+    console.log('Expected Role:', expectedRole);
     console.log('========================================');
 
     const { email, password } = req.body;
@@ -78,6 +74,17 @@ export const login = async (req, res) => {
 
     console.log('✅ Password verified successfully');
 
+    // CRITICAL: Check if user's role matches expected role
+    if (user.role !== expectedRole) {
+      console.log(`❌ Role mismatch: User has role ${user.role}, but ${expectedRole} login requires ${expectedRole}`);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password',
+      });
+    }
+
+    console.log('✅ Role validation passed:', user.role);
+
     // Sign JWT token
     const token = signToken({ userId: user.id });
     console.log('✅ JWT token generated for user:', user.email, 'Role:', user.role);
@@ -119,6 +126,35 @@ export const login = async (req, res) => {
       error: 'An error occurred during login',
     });
   }
+};
+
+/**
+ * Admin login - Only allows users with role ADMIN
+ */
+export const adminLogin = async (req, res) => {
+  return loginWithRole(req, res, 'ADMIN');
+};
+
+/**
+ * Agent login - Only allows users with role AGENT
+ */
+export const agentLogin = async (req, res) => {
+  return loginWithRole(req, res, 'AGENT');
+};
+
+/**
+ * Super Admin login - Only allows users with role SUPER_ADMIN
+ */
+export const superAdminLogin = async (req, res) => {
+  return loginWithRole(req, res, 'SUPER_ADMIN');
+};
+
+/**
+ * Generic login (deprecated - use role-specific endpoints)
+ * Kept for backward compatibility - defaults to Admin login
+ */
+export const login = async (req, res) => {
+  return adminLogin(req, res);
 };
 
 /**

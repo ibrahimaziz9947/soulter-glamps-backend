@@ -6,6 +6,9 @@ import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth.routes.js';
 import roleTestRoutes from './routes/roleTest.routes.js';
+import bookingRoutes from './routes/booking.routes.js';
+import commissionsRoutes from './routes/commissions.routes.js';
+import agentRoutes from './routes/agent.routes.js';
 
 console.log("=== 2. IMPORTS COMPLETED ===");
 
@@ -75,6 +78,18 @@ console.log("=== 12. AUTH ROUTES REGISTERED ===");
 // Step 6: Role test routes
 app.use('/api', roleTestRoutes);
 console.log("=== 13. ROLE TEST ROUTES REGISTERED ===");
+
+// Step 7: Booking routes
+app.use('/api/bookings', bookingRoutes);
+console.log("=== 14. BOOKING ROUTES REGISTERED ===" );
+
+// Step 8: Commission routes
+app.use('/api/commissions', commissionsRoutes);
+console.log("=== 15. COMMISSION ROUTES REGISTERED ===");
+
+// Step 9: Agent routes (agent-specific endpoints)
+app.use('/api/agent', agentRoutes);
+console.log("=== 16. AGENT ROUTES REGISTERED ===");
 
 // Health check
 // app.get('/api', (req, res) => {
