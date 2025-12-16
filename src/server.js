@@ -9,6 +9,7 @@ import roleTestRoutes from './routes/roleTest.routes.js';
 import bookingRoutes from './routes/booking.routes.js';
 import commissionsRoutes from './routes/commissions.routes.js';
 import agentRoutes from './routes/agent.routes.js';
+import glampRoutes from './routes/glamp.routes.js';
 
 console.log("=== 2. IMPORTS COMPLETED ===");
 
@@ -90,6 +91,10 @@ console.log("=== 15. COMMISSION ROUTES REGISTERED ===");
 // Step 9: Agent routes (agent-specific endpoints)
 app.use('/api/agent', agentRoutes);
 console.log("=== 16. AGENT ROUTES REGISTERED ===");
+
+// Step 10: Glamp routes
+app.use('/api/glamps', glampRoutes);
+console.log("=== 17. GLAMP ROUTES REGISTERED ===");
 
 // Health check
 // app.get('/api', (req, res) => {

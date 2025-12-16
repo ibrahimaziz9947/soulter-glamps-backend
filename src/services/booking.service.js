@@ -1,52 +1,115 @@
 import prisma from '../config/prisma.js';
 import { NotFoundError, ValidationError, ForbiddenError } from '../utils/errors.js';
 import { createCommissionForBooking } from './commission.service.js';
+import { hashPassword } from '../utils/hash.js';
+
+/**
+ * Validate UUID format
+ */
+const isValidUUID = (id) => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(id);
+};
+
+/**
+ * Find or create a CUSTOMER user
+ */
+const findOrCreateCustomer = async (name, email) => {
+  // Check if customer already exists
+  let customer = await prisma.user.findUnique({
+    where: { email },
+  });
+
+  if (customer) {
+    // If exists but not a customer, throw error
+    if (customer.role !== 'CUSTOMER') {
+      throw new ValidationError('This email is already registered with a different role');
+    }
+    return customer;
+  }
+
+  // Create new CUSTOMER user (no password needed - business entity)
+  const tempPassword = await hashPassword('customer-temp-' + Date.now());
+  customer = await prisma.user.create({
+    data: {
+      name,
+      email,
+      password: tempPassword, // Required field but not used for CUSTOMER login
+      role: 'CUSTOMER',
+      active: true,
+    },
+  });
+
+  return customer;
+};
 
 /**
  * Create a new booking (public - no login required)
  */
-export const createBooking = async (bookingData, userId = null) => {
-  // Support both checkIn/checkOut and checkInDate/checkOutDate field names
+export const createBooking = async (bookingData) => {
   const { 
     customerName, 
-    customerPhone, 
     customerEmail, 
-    checkIn: checkInField,
-    checkInDate,
-    nights, 
     glampId, 
-    totalAmount, 
-    paidAmount,
+    checkInDate,
+    checkOutDate,
+    numberOfGuests,
     agentId // Optional: agent who referred this booking
   } = bookingData;
 
-  // Use checkInDate if provided, otherwise fall back to checkIn
-  const checkInValue = checkInDate || checkInField;
-
   // Validate required fields
-  if (!checkInValue) {
-    throw new ValidationError('Check-in date is required');
+  if (!customerName || !customerEmail) {
+    throw new ValidationError('Customer name and email are required');
   }
 
-  if (!nights || nights < 1) {
-    throw new ValidationError('Number of nights must be at least 1');
+  if (!glampId) {
+    throw new ValidationError('Glamp ID is required');
   }
 
-  // Validate and parse check-in date
-  const checkInDate_parsed = new Date(checkInValue);
-  if (isNaN(checkInDate_parsed.getTime())) {
-    throw new ValidationError('Invalid check-in date format');
+  if (!checkInDate || !checkOutDate) {
+    throw new ValidationError('Check-in and check-out dates are required');
   }
 
-  // Calculate check-out date
-  const checkOutDate_parsed = new Date(checkInDate_parsed);
-  checkOutDate_parsed.setDate(checkOutDate_parsed.getDate() + parseInt(nights));
+  // Validate UUID format
+  if (!isValidUUID(glampId)) {
+    throw new ValidationError('Invalid glamp ID format');
+  }
+
+  if (agentId && !isValidUUID(agentId)) {
+    throw new ValidationError('Invalid agent ID format');
+  }
+
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(customerEmail)) {
+    throw new ValidationError('Invalid email format');
+  }
+
+  // Parse and validate dates
+  const checkIn = new Date(checkInDate);
+  const checkOut = new Date(checkOutDate);
+
+  if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
+    throw new ValidationError('Invalid date format');
+  }
+
+  // Validate date range
+  if (checkOut <= checkIn) {
+    throw new ValidationError('Check-out date must be after check-in date');
+  }
 
   // Validate dates are in the future
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  if (checkInDate_parsed < today) {
+  if (checkIn < today) {
     throw new ValidationError('Check-in date must be today or in the future');
+  }
+
+  // Calculate number of nights
+  const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+
+  if (nights < 1) {
+    throw new ValidationError('Booking must be at least 1 night');
   }
 
   // Check if glamp exists and is active
@@ -62,64 +125,59 @@ export const createBooking = async (bookingData, userId = null) => {
     throw new ValidationError('This glamp is not available for booking');
   }
 
-  // Check for overlapping bookings
-  // Since we don't store checkOut, we need to fetch all active bookings and check manually
-  const existingBookings = await prisma.booking.findMany({
-    where: {
-      glampId,
-      status: { in: ['PENDING', 'CONFIRMED'] },
-    },
-    select: {
-      id: true,
-      checkIn: true,
-      nights: true,
-    },
-  });
+  // Validate number of guests
+  if (numberOfGuests && numberOfGuests > glamp.maxGuests) {
+    throw new ValidationError(`This glamp can accommodate a maximum of ${glamp.maxGuests} guests`);
+  }
 
-  // Check for date conflicts
-  for (const existing of existingBookings) {
-    const existingCheckOut = new Date(existing.checkIn);
-    existingCheckOut.setDate(existingCheckOut.getDate() + existing.nights);
+  // Calculate total amount
+  const totalAmount = glamp.pricePerNight * nights;
 
-    // Overlap occurs if:
-    // 1. New checkIn is before existing checkOut AND
-    // 2. New checkOut is after existing checkIn
-    const hasOverlap = 
-      checkInDate_parsed < existingCheckOut && 
-      checkOutDate_parsed > existing.checkIn;
+  // Find or create customer
+  const customer = await findOrCreateCustomer(customerName, customerEmail);
 
-    if (hasOverlap) {
-      throw new ValidationError('This glamp is already booked for the selected dates');
+  // Verify agent exists if provided
+  if (agentId) {
+    const agent = await prisma.user.findUnique({
+      where: { id: agentId },
+    });
+
+    if (!agent || agent.role !== 'AGENT') {
+      throw new ValidationError('Invalid agent ID');
     }
   }
 
+  // Create booking
   const booking = await prisma.booking.create({
     data: {
-      customerName,
-      customerPhone,
-      customerEmail,
-      checkIn: checkInDate_parsed,
-      nights: parseInt(nights),
-      totalAmount: parseFloat(totalAmount),
-      paidAmount: paidAmount ? parseFloat(paidAmount) : 0,
+      customerId: customer.id,
+      agentId: agentId || null,
       glampId,
-      createdById: userId,
-      agentId: agentId ? parseInt(agentId) : null, // Link to agent if provided
+      checkInDate: checkIn,
+      checkOutDate: checkOut,
+      totalAmount,
       status: 'PENDING',
     },
     include: {
+      customer: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      agent: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
       glamp: {
         select: {
           id: true,
           name: true,
-          basePrice: true,
-        },
-      },
-      agent: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
+          pricePerNight: true,
         },
       },
     },
@@ -129,30 +187,23 @@ export const createBooking = async (bookingData, userId = null) => {
 };
 
 /**
- * Update booking status
- * @access ADMIN, SUPER_ADMIN
+ * Get all bookings with role-based filtering
  */
-export const updateBookingStatus = async (bookingId, status, userId) => {
-  const validStatuses = ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'];
+export const getAllBookings = async (user) => {
+  const where = {};
 
-  if (!validStatuses.includes(status)) {
-    throw new ValidationError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
+  // Role-based filtering
+  if (user.role === 'CUSTOMER') {
+    where.customerId = user.id;
+  } else if (user.role === 'AGENT') {
+    where.agentId = user.id;
   }
+  // ADMIN and SUPER_ADMIN see all bookings (no filter)
 
-  const booking = await prisma.booking.findUnique({
-    where: { id: bookingId },
-  });
-
-  if (!booking) {
-    throw new NotFoundError('Booking');
-  }
-
-  const updatedBooking = await prisma.booking.update({
-    where: { id: bookingId },
-    data: { status },
+  const bookings = await prisma.booking.findMany({
+    where,
     include: {
-      glamp: true,
-      createdBy: {
+      customer: {
         select: {
           id: true,
           name: true,
@@ -166,200 +217,154 @@ export const updateBookingStatus = async (bookingId, status, userId) => {
           email: true,
         },
       },
+      glamp: {
+        select: {
+          id: true,
+          name: true,
+          pricePerNight: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return bookings;
+};
+
+/**
+ * Get booking by ID with role-based access control
+ */
+export const getBookingById = async (bookingId, user) => {
+  if (!isValidUUID(bookingId)) {
+    throw new ValidationError('Invalid booking ID format');
+  }
+
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: {
+      customer: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      agent: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      glamp: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          pricePerNight: true,
+          maxGuests: true,
+        },
+      },
     },
   });
 
-  // Create commission when booking is CONFIRMED or COMPLETED
-  if ((status === 'CONFIRMED' || status === 'COMPLETED') && updatedBooking.agentId) {
+  if (!booking) {
+    throw new NotFoundError('Booking');
+  }
+
+  // Role-based access control
+  if (user.role === 'CUSTOMER' && booking.customerId !== user.id) {
+    throw new ForbiddenError('You can only view your own bookings');
+  }
+
+  if (user.role === 'AGENT' && booking.agentId !== user.id) {
+    throw new ForbiddenError('You can only view bookings assigned to you');
+  }
+
+  // ADMIN and SUPER_ADMIN can view any booking
+
+  return booking;
+};
+
+/**
+ * Update booking status with validation
+ */
+export const updateBookingStatus = async (bookingId, newStatus, userId) => {
+  if (!isValidUUID(bookingId)) {
+    throw new ValidationError('Invalid booking ID format');
+  }
+
+  // Validate status
+  const validStatuses = ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'];
+  if (!validStatuses.includes(newStatus)) {
+    throw new ValidationError('Invalid booking status');
+  }
+
+  // Get current booking
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: {
+      agent: true,
+    },
+  });
+
+  if (!booking) {
+    throw new NotFoundError('Booking');
+  }
+
+  // Validate status transitions
+  const currentStatus = booking.status;
+  const allowedTransitions = {
+    PENDING: ['CONFIRMED', 'CANCELLED'],
+    CONFIRMED: ['CANCELLED', 'COMPLETED'],
+    CANCELLED: [], // Cannot change from CANCELLED
+    COMPLETED: [], // Cannot change from COMPLETED
+  };
+
+  if (!allowedTransitions[currentStatus].includes(newStatus)) {
+    throw new ValidationError(
+      `Cannot transition from ${currentStatus} to ${newStatus}`
+    );
+  }
+
+  // Update booking status
+  const updatedBooking = await prisma.booking.update({
+    where: { id: bookingId },
+    data: { status: newStatus },
+    include: {
+      customer: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      agent: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      glamp: {
+        select: {
+          id: true,
+          name: true,
+          pricePerNight: true,
+        },
+      },
+    },
+  });
+
+  // Create commission if status changed to CONFIRMED or COMPLETED and agent is involved
+  if ((newStatus === 'CONFIRMED' || newStatus === 'COMPLETED') && booking.agentId) {
     try {
       await createCommissionForBooking(bookingId);
     } catch (error) {
       console.error('Error creating commission:', error);
-      // Don't fail the booking update if commission creation fails
+      // Don't fail the booking status update if commission creation fails
     }
   }
 
   return updatedBooking;
-};
-
-/**
- * Update booking details
- * @access ADMIN, SUPER_ADMIN
- */
-export const updateBooking = async (bookingId, updates) => {
-  const booking = await prisma.booking.findUnique({
-    where: { id: bookingId },
-  });
-
-  if (!booking) {
-    throw new NotFoundError('Booking');
-  }
-
-  const updatedBooking = await prisma.booking.update({
-    where: { id: bookingId },
-    data: updates,
-    include: {
-      glamp: true,
-      createdBy: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
-      agent: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
-    },
-  });
-
-  return updatedBooking;
-};
-
-/**
- * Get booking by ID
- */
-export const getBookingById = async (bookingId, user = null) => {
-  const booking = await prisma.booking.findUnique({
-    where: { id: bookingId },
-    include: {
-      glamp: true,
-      createdBy: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-        },
-      },
-      agent: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
-    },
-  });
-
-  if (!booking) {
-    throw new NotFoundError('Booking');
-  }
-
-  // Agents can only view bookings they referred
-  if (user && user.role === 'AGENT' && booking.agentId !== user.id) {
-    throw new ForbiddenError('You can only view bookings you referred');
-  }
-
-  return booking;
-};
-
-/**
- * Get all bookings with pagination and filters
- * @access ADMIN, SUPER_ADMIN
- */
-export const getAllBookings = async (filters = {}, pagination = {}) => {
-  const { skip, take } = pagination;
-  const { status, glampId, search, fromDate, toDate } = filters;
-
-  const where = {};
-
-  if (status) {
-    where.status = status;
-  }
-
-  if (glampId) {
-    where.glampId = parseInt(glampId);
-  }
-
-  if (search) {
-    where.OR = [
-      { customerName: { contains: search, mode: 'insensitive' } },
-      { customerPhone: { contains: search, mode: 'insensitive' } },
-      { customerEmail: { contains: search, mode: 'insensitive' } },
-    ];
-  }
-
-  if (fromDate) {
-    where.checkIn = { ...where.checkIn, gte: new Date(fromDate) };
-  }
-
-  if (toDate) {
-    where.checkIn = { ...where.checkIn, lte: new Date(toDate) };
-  }
-
-  const [bookings, total] = await Promise.all([
-    prisma.booking.findMany({
-      where,
-      skip,
-      take,
-      include: {
-        glamp: {
-          select: {
-            id: true,
-            name: true,
-            basePrice: true,
-          },
-        },
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        agent: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.booking.count({ where }),
-  ]);
-
-  return { bookings, total };
-};
-
-/**
- * Get agent's bookings (bookings they referred)
- * @access AGENT
- */
-export const getAgentBookings = async (agentId, filters = {}, pagination = {}) => {
-  const { skip, take } = pagination;
-  const { status } = filters;
-
-  const where = { agentId: agentId }; // Changed from createdById to agentId
-
-  if (status) {
-    where.status = status;
-  }
-
-  const [bookings, total] = await Promise.all([
-    prisma.booking.findMany({
-      where,
-      skip,
-      take,
-      include: {
-        glamp: {
-          select: {
-            id: true,
-            name: true,
-            basePrice: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.booking.count({ where }),
-  ]);
-
-  return { bookings, total };
 };

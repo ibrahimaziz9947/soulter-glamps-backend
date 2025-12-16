@@ -8,8 +8,8 @@ const router = express.Router();
 
 // Agent-specific routes for viewing their own bookings and commissions
 
-// Get bookings referred by the agent
-router.get('/bookings', authRequired, requireAgent, bookingController.getAgentBookings);
+// Get bookings referred by the agent (uses main getAllBookings with role-based filtering)
+router.get('/bookings', authRequired, requireAgent, bookingController.getAllBookings);
 
 // Get commissions earned by the agent
 router.get('/commissions', authRequired, requireAgent, commissionController.getMyCommissions);

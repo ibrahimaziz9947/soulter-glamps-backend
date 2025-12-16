@@ -1,20 +1,18 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
-import { requireAdmin, requireAgent } from '../middleware/roles.js';
+import { requireAgent } from '../middleware/roles.js';
 import * as bookingController from '../controllers/booking.controller.js';
 
 const router = express.Router();
 
-// Public routes (customers can book without login)
-router.post('/bookings', bookingController.createBooking);
-router.get('/bookings/:id', bookingController.getBookingById);
+// Public route - Anyone can create a booking
+router.post('/', bookingController.createBooking);
 
-// Protected routes - AGENT
-router.get('/bookings/my-bookings', authRequired, requireAgent, bookingController.getAgentBookings);
+// Protected routes - Auth required with role-based access
+router.get('/', authRequired, bookingController.getAllBookings);
+router.get('/:id', authRequired, bookingController.getBookingById);
 
-// Protected routes - ADMIN and SUPER_ADMIN
-router.get('/bookings', authRequired, requireAdmin, bookingController.getAllBookings);
-router.put('/bookings/:id', authRequired, requireAdmin, bookingController.updateBooking);
-router.patch('/bookings/:id/status', authRequired, requireAdmin, bookingController.updateBookingStatus);
+// Admin/Agent routes - Status updates (requireAgent allows SUPER_ADMIN, ADMIN, and AGENT)
+router.patch('/:id/status', authRequired, requireAgent, bookingController.updateBookingStatus);
 
 export default router;

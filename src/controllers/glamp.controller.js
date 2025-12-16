@@ -1,5 +1,4 @@
 import * as glampService from '../services/glamp.service.js';
-import { getPagination, getPaginationMeta } from '../utils/pagination.js';
 import { asyncHandler } from '../utils/errors.js';
 
 /**
@@ -8,57 +7,11 @@ import { asyncHandler } from '../utils/errors.js';
  * @access ADMIN, SUPER_ADMIN
  */
 export const createGlamp = asyncHandler(async (req, res) => {
-  const glamp = await glampService.createGlamp(req.body, req.user.id);
+  const glamp = await glampService.createGlamp(req.body);
 
   return res.status(201).json({
     success: true,
     message: 'Glamp created successfully',
-    data: glamp,
-  });
-});
-
-/**
- * Update a glamp
- * @route PUT /api/glamps/:id
- * @access ADMIN, SUPER_ADMIN
- */
-export const updateGlamp = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const glamp = await glampService.updateGlamp(parseInt(id), req.body);
-
-  return res.status(200).json({
-    success: true,
-    message: 'Glamp updated successfully',
-    data: glamp,
-  });
-});
-
-/**
- * Delete a glamp
- * @route DELETE /api/glamps/:id
- * @access ADMIN, SUPER_ADMIN
- */
-export const deleteGlamp = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const result = await glampService.deleteGlamp(parseInt(id));
-
-  return res.status(200).json({
-    success: true,
-    message: result.message,
-  });
-});
-
-/**
- * Get glamp by ID
- * @route GET /api/glamps/:id
- * @access Public
- */
-export const getGlampById = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const glamp = await glampService.getGlampById(parseInt(id));
-
-  return res.status(200).json({
-    success: true,
     data: glamp,
   });
 });
@@ -69,17 +22,61 @@ export const getGlampById = asyncHandler(async (req, res) => {
  * @access Public
  */
 export const getAllGlamps = asyncHandler(async (req, res) => {
-  const { page, limit, status, minCapacity, maxPrice, search } = req.query;
+  const { status } = req.query;
   
-  const pagination = getPagination(page, limit);
-  const filters = { status, minCapacity, maxPrice, search };
-
-  const { glamps, total } = await glampService.getAllGlamps(filters, pagination);
-  const meta = getPaginationMeta(total, pagination.page, pagination.limit);
+  const filters = { status };
+  const glamps = await glampService.getAllGlamps(filters);
 
   return res.status(200).json({
     success: true,
+    count: glamps.length,
     data: glamps,
-    pagination: meta,
+  });
+});
+
+/**
+ * Get glamp by ID
+ * @route GET /api/glamps/:id
+ * @access Public
+ */
+export const getGlampById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const glamp = await glampService.getGlampById(id);
+
+  return res.status(200).json({
+    success: true,
+    data: glamp,
+  });
+});
+
+/**
+ * Update glamp
+ * @route PUT /api/glamps/:id
+ * @access ADMIN, SUPER_ADMIN
+ */
+export const updateGlamp = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const glamp = await glampService.updateGlamp(id, req.body);
+
+  return res.status(200).json({
+    success: true,
+    message: 'Glamp updated successfully',
+    data: glamp,
+  });
+});
+
+/**
+ * Delete glamp
+ * @route DELETE /api/glamps/:id
+ * @access ADMIN, SUPER_ADMIN
+ */
+export const deleteGlamp = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const result = await glampService.deleteGlamp(id);
+
+  return res.status(200).json({
+    success: true,
+    message: `Glamp deleted successfully. ${result.deletedBookings} related booking(s) removed.`,
+    data: result,
   });
 });

@@ -5,13 +5,13 @@ import * as glampController from '../controllers/glamp.controller.js';
 
 const router = express.Router();
 
-// Public routes (view glamping sites)
-router.get('/glamps', glampController.getAllGlamps);
-router.get('/glamps/:id', glampController.getGlampById);
+// Public routes - Anyone can view glamps
+router.get('/', glampController.getAllGlamps);
+router.get('/:id', glampController.getGlampById);
 
-// Protected routes (admin management)
-router.post('/glamps', authRequired, requireAdmin, glampController.createGlamp);
-router.put('/glamps/:id', authRequired, requireAdmin, glampController.updateGlamp);
-router.delete('/glamps/:id', authRequired, requireAdmin, glampController.deleteGlamp);
+// Protected routes - ADMIN and SUPER_ADMIN only
+router.post('/', authRequired, requireAdmin, glampController.createGlamp);
+router.put('/:id', authRequired, requireAdmin, glampController.updateGlamp);
+router.delete('/:id', authRequired, requireAdmin, glampController.deleteGlamp);
 
 export default router;

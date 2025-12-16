@@ -1,42 +1,47 @@
 import prisma from '../config/prisma.js';
-import { NotFoundError, ValidationError, ConflictError } from '../utils/errors.js';
+import { NotFoundError, ValidationError } from '../utils/errors.js';
+
+/**
+ * Validate UUID format
+ */
+const isValidUUID = (id) => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(id);
+};
 
 /**
  * Create a new glamp
+ * @access ADMIN, SUPER_ADMIN
  */
-export const createGlamp = async (glampData, userId) => {
-  const { name, description, basePrice, weekendPrice, seasonalMultiplier, capacity, amenities, images, status } = glampData;
+export const createGlamp = async (glampData) => {
+  const { name, description, pricePerNight, maxGuests, status } = glampData;
 
-  // Check if glamp with same name exists
-  const existingGlamp = await prisma.glamp.findFirst({
-    where: { name },
-  });
+  // Validate required fields
+  if (!name || !description || !pricePerNight || !maxGuests) {
+    throw new ValidationError('Name, description, pricePerNight, and maxGuests are required');
+  }
 
-  if (existingGlamp) {
-    throw new ConflictError('A glamp with this name already exists');
+  // Validate numeric fields
+  if (pricePerNight <= 0) {
+    throw new ValidationError('Price per night must be greater than 0');
+  }
+
+  if (maxGuests <= 0) {
+    throw new ValidationError('Max guests must be greater than 0');
+  }
+
+  // Validate status if provided
+  if (status && !['ACTIVE', 'INACTIVE'].includes(status)) {
+    throw new ValidationError('Status must be ACTIVE or INACTIVE');
   }
 
   const glamp = await prisma.glamp.create({
     data: {
-      name,
-      description,
-      basePrice,
-      weekendPrice,
-      seasonalMultiplier,
-      capacity,
-      amenities,
-      images,
+      name: name.trim(),
+      description: description.trim(),
+      pricePerNight: parseInt(pricePerNight),
+      maxGuests: parseInt(maxGuests),
       status: status || 'ACTIVE',
-      createdById: userId,
-    },
-    include: {
-      createdBy: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
     },
   });
 
@@ -44,97 +49,37 @@ export const createGlamp = async (glampData, userId) => {
 };
 
 /**
- * Update an existing glamp
+ * Get all glamps
+ * @access Public
  */
-export const updateGlamp = async (glampId, glampData) => {
-  // Check if glamp exists
-  const existingGlamp = await prisma.glamp.findUnique({
-    where: { id: glampId },
-  });
+export const getAllGlamps = async (filters = {}) => {
+  const { status } = filters;
 
-  if (!existingGlamp) {
-    throw new NotFoundError('Glamp');
+  const where = {};
+
+  if (status) {
+    where.status = status;
   }
 
-  // If name is being updated, check for duplicates
-  if (glampData.name && glampData.name !== existingGlamp.name) {
-    const duplicateGlamp = await prisma.glamp.findFirst({
-      where: {
-        name: glampData.name,
-        id: { not: glampId },
-      },
-    });
-
-    if (duplicateGlamp) {
-      throw new ConflictError('A glamp with this name already exists');
-    }
-  }
-
-  const glamp = await prisma.glamp.update({
-    where: { id: glampId },
-    data: glampData,
-    include: {
-      createdBy: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
-    },
+  const glamps = await prisma.glamp.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
   });
 
-  return glamp;
-};
-
-/**
- * Delete a glamp
- */
-export const deleteGlamp = async (glampId) => {
-  // Check if glamp exists
-  const existingGlamp = await prisma.glamp.findUnique({
-    where: { id: glampId },
-    include: {
-      _count: {
-        select: { bookings: true },
-      },
-    },
-  });
-
-  if (!existingGlamp) {
-    throw new NotFoundError('Glamp');
-  }
-
-  // Check if glamp has bookings
-  if (existingGlamp._count.bookings > 0) {
-    throw new ValidationError('Cannot delete glamp with existing bookings. Consider deactivating it instead.');
-  }
-
-  await prisma.glamp.delete({
-    where: { id: glampId },
-  });
-
-  return { message: 'Glamp deleted successfully' };
+  return glamps;
 };
 
 /**
  * Get glamp by ID
+ * @access Public
  */
 export const getGlampById = async (glampId) => {
+  if (!isValidUUID(glampId)) {
+    throw new ValidationError('Invalid glamp ID format');
+  }
+
   const glamp = await prisma.glamp.findUnique({
     where: { id: glampId },
-    include: {
-      createdBy: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
-      _count: {
-        select: { bookings: true },
-      },
-    },
   });
 
   if (!glamp) {
@@ -145,54 +90,81 @@ export const getGlampById = async (glampId) => {
 };
 
 /**
- * Get all glamps with pagination and filters
+ * Update glamp
+ * @access ADMIN, SUPER_ADMIN
  */
-export const getAllGlamps = async (filters = {}, pagination = {}) => {
-  const { skip, take } = pagination;
-  const { status, minCapacity, maxPrice, search } = filters;
-
-  const where = {};
-
-  if (status) {
-    where.status = status;
+export const updateGlamp = async (glampId, updates) => {
+  if (!isValidUUID(glampId)) {
+    throw new ValidationError('Invalid glamp ID format');
   }
 
-  if (minCapacity) {
-    where.capacity = { gte: parseInt(minCapacity) };
+  const existingGlamp = await prisma.glamp.findUnique({
+    where: { id: glampId },
+  });
+
+  if (!existingGlamp) {
+    throw new NotFoundError('Glamp');
   }
 
-  if (maxPrice) {
-    where.basePrice = { lte: parseInt(maxPrice) };
+  // Validate updates
+  if (updates.pricePerNight !== undefined && updates.pricePerNight <= 0) {
+    throw new ValidationError('Price per night must be greater than 0');
   }
 
-  if (search) {
-    where.OR = [
-      { name: { contains: search, mode: 'insensitive' } },
-      { description: { contains: search, mode: 'insensitive' } },
-    ];
+  if (updates.maxGuests !== undefined && updates.maxGuests <= 0) {
+    throw new ValidationError('Max guests must be greater than 0');
   }
 
-  const [glamps, total] = await Promise.all([
-    prisma.glamp.findMany({
-      where,
-      skip,
-      take,
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        _count: {
-          select: { bookings: true },
-        },
+  if (updates.status && !['ACTIVE', 'INACTIVE'].includes(updates.status)) {
+    throw new ValidationError('Status must be ACTIVE or INACTIVE');
+  }
+
+  // Prepare update data
+  const updateData = {};
+  if (updates.name !== undefined) updateData.name = updates.name.trim();
+  if (updates.description !== undefined) updateData.description = updates.description.trim();
+  if (updates.pricePerNight !== undefined) updateData.pricePerNight = parseInt(updates.pricePerNight);
+  if (updates.maxGuests !== undefined) updateData.maxGuests = parseInt(updates.maxGuests);
+  if (updates.status !== undefined) updateData.status = updates.status;
+
+  const updatedGlamp = await prisma.glamp.update({
+    where: { id: glampId },
+    data: updateData,
+  });
+
+  return updatedGlamp;
+};
+
+/**
+ * Delete glamp
+ * @access ADMIN, SUPER_ADMIN
+ */
+export const deleteGlamp = async (glampId) => {
+  if (!isValidUUID(glampId)) {
+    throw new ValidationError('Invalid glamp ID format');
+  }
+
+  // Check if glamp exists
+  const existingGlamp = await prisma.glamp.findUnique({
+    where: { id: glampId },
+    include: {
+      _count: {
+        select: { bookings: true },
       },
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.glamp.count({ where }),
-  ]);
+    },
+  });
 
-  return { glamps, total };
+  if (!existingGlamp) {
+    throw new NotFoundError('Glamp');
+  }
+
+  // Delete glamp (CASCADE will handle related bookings)
+  await prisma.glamp.delete({
+    where: { id: glampId },
+  });
+
+  return {
+    id: glampId,
+    deletedBookings: existingGlamp._count.bookings,
+  };
 };

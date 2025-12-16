@@ -34,24 +34,18 @@ enum BookingStatus {
 // USER MODEL
 // ============================================
 // Represents all system users: customers, agents, admins, super admins
-// 
-// CUSTOMER Lifecycle:
-// - CUSTOMER users are created dynamically during booking flow
-// - They do NOT require login credentials (business entities, not operators)
-// - CUSTOMER deletion is allowed and will CASCADE to their bookings
-// - Only SUPER_ADMIN, ADMIN, and AGENT are seeded with credentials
 model User {
   id       String  @id @default(uuid())
   name     String
   email    String  @unique
-  password String // Hashed with bcrypt
+  password String  // Hashed with bcrypt
   role     Role    @default(CUSTOMER)
   active   Boolean @default(true)
 
   // Relations
-  customerBookings Booking[]    @relation("CustomerBookings") // Bookings made as customer
-  agentBookings    Booking[]    @relation("AgentBookings") // Bookings referred as agent
-  commissions      Commission[] // Commissions earned as agent
+  customerBookings Booking[]     @relation("CustomerBookings") // Bookings made as customer
+  agentBookings    Booking[]     @relation("AgentBookings")    // Bookings referred as agent
+  commissions      Commission[]  // Commissions earned as agent
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -68,7 +62,7 @@ model Glamp {
   id            String      @id @default(uuid())
   name          String
   description   String?
-  pricePerNight Int // Price in smallest currency unit (e.g., cents)
+  pricePerNight Int         // Price in smallest currency unit (e.g., cents)
   maxGuests     Int
   status        GlampStatus @default(ACTIVE)
 
@@ -81,16 +75,17 @@ model Glamp {
   @@index([status])
 }
 
+model Booking {
 // ============================================
 // BOOKING MODEL
 // ============================================
 // Represents a reservation made by a customer for a glamp
 model Booking {
-  id           String        @id @default(uuid())
-  checkInDate  DateTime
-  checkOutDate DateTime
-  totalAmount  Int // Total booking amount in smallest currency unit
-  status       BookingStatus @default(PENDING)
+  id            String        @id @default(uuid())
+  checkInDate   DateTime
+  checkOutDate  DateTime
+  totalAmount   Int           // Total booking amount in smallest currency unit
+  status        BookingStatus @default(PENDING)
 
   // Relations
   customer   User   @relation("CustomerBookings", fields: [customerId], references: [id], onDelete: Cascade)
@@ -110,17 +105,13 @@ model Booking {
   @@index([customerId])
   @@index([agentId])
   @@index([glampId])
-  @@index([status])
-  @@index([checkInDate])
-}
-
-// ============================================
+ / ============================================
 // COMMISSION MODEL
 // ============================================
 // Represents commission earned by an agent for referring a booking
 model Commission {
   id     String @id @default(uuid())
-  amount Int // Commission amount in smallest currency unit
+  amount Int    // Commission amount in smallest currency unit
 
   // Relations
   agent   User   @relation(fields: [agentId], references: [id], onDelete: Cascade)
@@ -133,4 +124,7 @@ model Commission {
 
   @@index([agentId])
   @@index([bookingId])
+  source String? // e.g. "Booking" or "Glamps Sale"
+  date   DateTime @default(now())
+  notes  String?
 }
