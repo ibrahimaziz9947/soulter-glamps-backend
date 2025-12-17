@@ -49,40 +49,45 @@ const findOrCreateCustomer = async (name, email) => {
 export const createBooking = async (bookingData) => {
   const { 
     customerName, 
-    customerEmail, 
+    customerEmail,
+    customerPhone, // Optional phone number
     glampId, 
     checkInDate,
     checkOutDate,
-    numberOfGuests,
+    numberOfGuests, // Accept both formats
+    guests, // Frontend may send 'guests' instead
     agentId // Optional: agent who referred this booking
   } = bookingData;
 
+  // Support both 'guests' and 'numberOfGuests'
+  const guestCount = guests || numberOfGuests;
+
   // Validate required fields
   if (!customerName || !customerEmail) {
-    throw new ValidationError('Customer name and email are required');
+    throw new ValidationError('Please provide your name and email address');
   }
 
   if (!glampId) {
-    throw new ValidationError('Glamp ID is required');
+    throw new ValidationError('Please select a glamp to book');
   }
 
   if (!checkInDate || !checkOutDate) {
-    throw new ValidationError('Check-in and check-out dates are required');
+    throw new ValidationError('Please select check-in and check-out dates');
   }
 
   // Validate UUID format
   if (!isValidUUID(glampId)) {
-    throw new ValidationError('Invalid glamp ID format');
+    throw new ValidationError('Invalid glamp selection. Please try again');
   }
 
   if (agentId && !isValidUUID(agentId)) {
-    throw new ValidationError('Invalid agent ID format');
+    throw new ValidationError('Invalid agent reference');
   }
 
   // Validate email format
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(customerEmail)) {
-    throw new ValidationError('Invalid email format');
+    throw new ValidationError('Please provide a valid email address');
   }
 
   // Parse and validate dates
@@ -90,7 +95,7 @@ export const createBooking = async (bookingData) => {
   const checkOut = new Date(checkOutDate);
 
   if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
-    throw new ValidationError('Invalid date format');
+    throw new ValidationError('Please provide valid dates for your booking');
   }
 
   // Validate date range
@@ -102,7 +107,7 @@ export const createBooking = async (bookingData) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   if (checkIn < today) {
-    throw new ValidationError('Check-in date must be today or in the future');
+    throw new ValidationError('Check-in date cannot be in the past');
   }
 
   // Calculate number of nights
@@ -118,16 +123,16 @@ export const createBooking = async (bookingData) => {
   });
 
   if (!glamp) {
-    throw new NotFoundError('Glamp');
+    throw new NotFoundError('The selected glamp is no longer available');
   }
 
   if (glamp.status !== 'ACTIVE') {
-    throw new ValidationError('This glamp is not available for booking');
+    throw new ValidationError('This glamp is currently unavailable for booking. Please choose another one');
   }
 
   // Validate number of guests
-  if (numberOfGuests && numberOfGuests > glamp.maxGuests) {
-    throw new ValidationError(`This glamp can accommodate a maximum of ${glamp.maxGuests} guests`);
+  if (guestCount && guestCount > glamp.maxGuests) {
+    throw new ValidationError(`This glamp can accommodate a maximum of ${glamp.maxGuests} guest${glamp.maxGuests > 1 ? 's' : ''}. Please reduce the number of guests or choose a larger glamp`);
   }
 
   // Calculate total amount
@@ -147,14 +152,28 @@ export const createBooking = async (bookingData) => {
     }
   }
 
+  // Log booking creation attempt
+  console.log('📝 Creating booking:', {
+    glampId,
+    glampName: glamp.name,
+    customerEmail,
+    checkIn: checkIn.toISOString(),
+    checkOut: checkOut.toISOString(),
+    nights,
+    totalAmount: `$${totalAmount / 100}`,
+  });
+
   // Create booking
   const booking = await prisma.booking.create({
     data: {
       customerId: customer.id,
+      customerName: customer.name, // Snapshot field
       agentId: agentId || null,
       glampId,
+      glampName: glamp.name, // Snapshot field
       checkInDate: checkIn,
       checkOutDate: checkOut,
+      guests: guestCount || 1, // Store guest count
       totalAmount,
       status: 'PENDING',
     },
@@ -181,6 +200,14 @@ export const createBooking = async (bookingData) => {
         },
       },
     },
+  });
+
+  // Log successful booking creation
+  console.log('✅ Booking created successfully:', {
+    bookingId: booking.id,
+    customer: booking.customer.email,
+    glamp: booking.glamp.name,
+    status: booking.status,
   });
 
   return booking;

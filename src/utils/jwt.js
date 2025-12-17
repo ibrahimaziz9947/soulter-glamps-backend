@@ -4,10 +4,15 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-producti
 
 /**
  * Sign a JWT token
- * @param {object} payload - Data to encode in token
+ * @param {object} payload - Data to encode in token (must include userId and role)
  * @returns {string} JWT token
  */
 export const signToken = (payload) => {
+  // Ensure payload includes userId and role
+  if (!payload.userId || !payload.role) {
+    throw new Error('JWT payload must include userId and role');
+  }
+  
   return jwt.sign(payload, JWT_SECRET, {
     expiresIn: '7d',
   });

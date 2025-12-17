@@ -14,10 +14,10 @@
 import prisma from './src/config/prisma.js';
 import { hashPassword } from './src/utils/hash.js';
 
-// System users with login credentials
+// System users with login credentials (EXACT emails as per spec)
 const systemUsers = [
   {
-    email: 'super@soulter.com',
+    email: 'superadmin@soulter.com',
     password: 'super123',
     role: 'SUPER_ADMIN',
     name: 'Super Admin',
@@ -48,28 +48,41 @@ async function seedSystemUsers() {
 
   try {
     for (const userData of systemUsers) {
-      // Check if user exists
-      const existingUser = await prisma.user.findUnique({
+      // Check if password is already hashed (starts with $2b$ for bcrypt)
+      const isAlreadyHashed = userData.password.startsWith('$2b$');
+      const passwordToUse = isAlreadyHashed ? userData.password : await hashPassword(userData.password);
+
+      // Use upsert for idempotent seeding
+      const result = await prisma.user.upsert({
         where: { email: userData.email },
+        update: {
+          // Only update if user exists but data changed
+          role: userData.role,
+          name: userData.name,
+          active: true,
+          // Never re-hash password if already hashed
+        },
+        create: {
+          email: userData.email,
+          password: passwordToUse,
+          role: userData.role,
+          name: userData.name,
+          active: true,
+        },
       });
 
-      if (existingUser) {
-        console.log(`✅ Already exists: ${userData.email} (${userData.role})`);
-        existing++;
-      } else {
-        // Create new user with hashed password
-        const hashedPassword = await hashPassword(userData.password);
-        await prisma.user.create({
-          data: {
-            email: userData.email,
-            password: hashedPassword,
-            role: userData.role,
-            name: userData.name,
-            active: true,
-          },
-        });
+      // Check if this was a creation or update
+      const existingUser = await prisma.user.findUnique({
+        where: { email: userData.email },
+        select: { createdAt: true, updatedAt: true },
+      });
+
+      if (existingUser.createdAt.getTime() === existingUser.updatedAt.getTime()) {
         console.log(`✅ Created: ${userData.email} (${userData.role})`);
         created++;
+      } else {
+        console.log(`✅ Already exists (verified): ${userData.email} (${userData.role})`);
+        existing++;
       }
     }
 

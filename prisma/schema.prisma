@@ -89,6 +89,7 @@ model Booking {
   id           String        @id @default(uuid())
   checkInDate  DateTime
   checkOutDate DateTime
+  guests       Int @default(1) // Number of guests
   totalAmount  Int // Total booking amount in smallest currency unit
   status       BookingStatus @default(PENDING)
 
@@ -101,6 +102,10 @@ model Booking {
 
   glamp   Glamp  @relation(fields: [glampId], references: [id], onDelete: Cascade)
   glampId String
+
+  // Snapshot fields for admin readability (denormalized for performance)
+  customerName String @default("Unknown") // Snapshot of customer name at booking time
+  glampName    String @default("Unknown") // Snapshot of glamp name at booking time
 
   commission Commission? // Commission generated for this booking (if agent involved)
 

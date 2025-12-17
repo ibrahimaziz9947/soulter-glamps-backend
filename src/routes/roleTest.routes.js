@@ -1,5 +1,3 @@
-console.log("🔵 ROLE TEST ROUTES FILE LOADED");
-
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { requireSuperAdmin, requireAdmin, requireAgent } from '../middleware/roles.js';
@@ -50,7 +48,5 @@ router.get('/agent/test', authRequired, requireAgent, (req, res) => {
     },
   });
 });
-
-console.log("🔵 ROLE TEST ROUTES REGISTERED");
 
 export default router;

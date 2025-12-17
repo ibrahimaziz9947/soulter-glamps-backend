@@ -9,12 +9,14 @@ const loginWithRole = async (req, res, expectedRole) => {
   try {
     console.log('========================================');
     console.log(`🔵 ${expectedRole} LOGIN REQUEST RECEIVED`);
+    console.log('Timestamp:', new Date().toISOString());
     console.log('Method:', req.method);
     console.log('Body:', JSON.stringify(req.body, null, 2));
     console.log('Expected Role:', expectedRole);
     console.log('========================================');
 
     const { email, password } = req.body;
+    console.log('LOGIN ATTEMPT:', email, expectedRole);
 
     // Validate input
     if (!email || !password) {
@@ -48,7 +50,8 @@ const loginWithRole = async (req, res, expectedRole) => {
       });
     }
 
-    console.log('✅ User found:', { id: user.id, email: user.email, role: user.role });
+    console.log('USER FOUND:', user?.role);
+    console.log('✅ User found:', { id: user.id, email: user.email, role: user.role, active: user.active });
 
     // Check if user is active
     if (!user.active) {
@@ -85,8 +88,8 @@ const loginWithRole = async (req, res, expectedRole) => {
 
     console.log('✅ Role validation passed:', user.role);
 
-    // Sign JWT token
-    const token = signToken({ userId: user.id });
+    // Sign JWT token with userId and role
+    const token = signToken({ userId: user.id, role: user.role });
     console.log('✅ JWT token generated for user:', user.email, 'Role:', user.role);
 
     // Set HTTP-only cookie
@@ -106,11 +109,11 @@ const loginWithRole = async (req, res, expectedRole) => {
     console.log('   Cookie Options:', cookieOptions);
     console.log('   Token (first 20 chars):', token.substring(0, 20) + '...');
 
-    // Return success response
+    // Return success response (cookie-only auth, no token in body)
     console.log('🟢 Sending success response for role:', user.role);
+    console.log('========================================\n');
     return res.status(200).json({
       success: true,
-      token,
       user: {
         id: user.id,
         name: user.name,
