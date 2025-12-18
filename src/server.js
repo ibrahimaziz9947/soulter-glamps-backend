@@ -86,6 +86,13 @@ app.use(cors({
   maxAge: 86400 // Cache preflight requests for 24 hours
 }));
 
+// Explicit global OPTIONS handler for ALL routes (preflight requests)
+app.options('*', (req, res) => {
+  console.log('🔧 Handling OPTIONS preflight for:', req.path);
+  console.log('🔧 Origin:', req.headers.origin);
+  res.status(200).end();
+});
+
 // Health check endpoint for Railway and monitoring
 app.get('/health', async (req, res) => {
   try {
@@ -110,6 +117,20 @@ app.get('/health', async (req, res) => {
 // Legacy ping endpoint
 app.get('/__ping', (req, res) => {
   res.status(200).json({ ok: true });
+});
+
+// CORS Debug endpoint - Check CORS configuration
+app.get('/api/debug/cors', (req, res) => {
+  res.json({
+    success: true,
+    corsConfig: {
+      nodeEnv: process.env.NODE_ENV,
+      frontendUrlsRaw: process.env.FRONTEND_URLS,
+      allowedOrigins: allowedOrigins,
+      requestOrigin: req.headers.origin,
+      allHeaders: req.headers
+    }
+  });
 });
 
 // Base route
