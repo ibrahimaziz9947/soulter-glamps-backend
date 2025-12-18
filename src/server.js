@@ -23,40 +23,67 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// CORS - Support both development and production origins
+// CORS Configuration - Production-ready with explicit origin handling
+// Parse FRONTEND_URLS from environment variable (comma-separated list)
+const getFrontendUrls = () => {
+  const frontendUrlsEnv = process.env.FRONTEND_URLS;
+  
+  // Debug logging
+  console.log('🔍 Raw FRONTEND_URLS env var:', frontendUrlsEnv);
+  console.log('🔍 Type:', typeof frontendUrlsEnv);
+  
+  if (!frontendUrlsEnv) {
+    console.warn('⚠️  FRONTEND_URLS not set in environment variables');
+    return [];
+  }
+  
+  // Split by comma, trim whitespace, remove empty strings
+  const urls = frontendUrlsEnv
+    .split(',')
+    .map(url => url.trim())
+    .filter(url => url.length > 0 && !url.startsWith('='));
+  
+  return urls;
+};
+
+// Determine allowed origins based on environment
 const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? (process.env.FRONTEND_URLS || '').split(',').map(url => url.trim()).filter(Boolean)
-  : ['http://localhost:3000', 'http://localhost:3001'];
+  ? getFrontendUrls()
+  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173'];
 
 console.log('🌐 Environment:', process.env.NODE_ENV);
-console.log('🌐 Allowed CORS Origins:', allowedOrigins);
+console.log('🌐 Allowed CORS Origins:', JSON.stringify(allowedOrigins, null, 2));
+console.log('🌐 Total allowed origins:', allowedOrigins.length);
 
-// CORS configuration - Production-ready with specific origins
+// CORS middleware - Dynamic origin validation
 app.use(cors({
   origin: function (origin, callback) {
-    console.log('📍 Request from origin:', origin);
+    console.log('📍 Incoming request from origin:', origin || 'no-origin');
     
-    // Allow requests with no origin (like mobile apps, curl, or same-origin requests)
+    // Allow requests with no origin (mobile apps, curl, same-origin, Postman)
     if (!origin) {
-      console.log('✅ Allowing request with no origin');
+      console.log('✅ Allowed: Request with no origin header');
       return callback(null, true);
     }
     
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    // Check if origin is in allowed list
+    if (allowedOrigins.includes(origin)) {
       console.log('✅ CORS allowed for origin:', origin);
-      callback(null, true);
-    } else {
-      console.log('❌ CORS blocked origin:', origin);
-      console.log('   Allowed origins are:', allowedOrigins);
-      callback(new Error('Not allowed by CORS'));
+      return callback(null, true);
     }
+    
+    // Block unauthorized origins
+    console.log('❌ CORS BLOCKED - Origin not allowed:', origin);
+    console.log('   Expected one of:', allowedOrigins);
+    callback(new Error(`CORS policy: Origin ${origin} is not allowed`));
   },
-  credentials: true, // Allow cookies and authorization headers
+  credentials: true, // Allow cookies and authorization headers with credentials
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Requested-With'],
   exposedHeaders: ['Set-Cookie'],
-  optionsSuccessStatus: 200, // Some legacy browsers choke on 204
-  preflightContinue: false
+  optionsSuccessStatus: 200, // Legacy browser support (IE11, SmartTVs)
+  preflightContinue: false,
+  maxAge: 86400 // Cache preflight requests for 24 hours
 }));
 
 // Health check endpoint for Railway and monitoring
