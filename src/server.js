@@ -28,24 +28,35 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
   ? (process.env.FRONTEND_URLS || '').split(',').map(url => url.trim()).filter(Boolean)
   : ['http://localhost:3000', 'http://localhost:3001'];
 
+console.log('🌐 Environment:', process.env.NODE_ENV);
 console.log('🌐 Allowed CORS Origins:', allowedOrigins);
 
+// CORS configuration - Production-ready with specific origins
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl)
-    if (!origin) return callback(null, true);
+    console.log('📍 Request from origin:', origin);
+    
+    // Allow requests with no origin (like mobile apps, curl, or same-origin requests)
+    if (!origin) {
+      console.log('✅ Allowing request with no origin');
+      return callback(null, true);
+    }
     
     if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log('✅ CORS allowed for origin:', origin);
       callback(null, true);
     } else {
       console.log('❌ CORS blocked origin:', origin);
+      console.log('   Allowed origins are:', allowedOrigins);
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true,
+  credentials: true, // Allow cookies and authorization headers
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['Set-Cookie']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  exposedHeaders: ['Set-Cookie'],
+  optionsSuccessStatus: 200, // Some legacy browsers choke on 204
+  preflightContinue: false
 }));
 
 // Health check endpoint for Railway and monitoring
