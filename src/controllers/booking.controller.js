@@ -47,15 +47,23 @@ export const getAllBookings = asyncHandler(async (req, res) => {
 /**
  * Get booking by ID
  * @route GET /api/bookings/:id
- * @access Auth required
+ * @access Public (no auth required)
  */
 export const getBookingById = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const booking = await bookingService.getBookingById(id, req.user);
+  const booking = await bookingService.getBookingById(id);
 
   return res.status(200).json({
     success: true,
-    data: booking,
+    booking: {
+      id: booking.id,
+      status: booking.status,
+      checkInDate: booking.checkInDate,
+      checkOutDate: booking.checkOutDate,
+      guests: booking.guests,
+      glampName: booking.glampName,
+      customerName: booking.customerName,
+    },
   });
 });
 

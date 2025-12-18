@@ -28,7 +28,17 @@ export const authRequired = async (req, res, next) => {
 
     // Verify token
     const decoded = verifyToken(token);
+    console.log('🔓 Token decoded:', JSON.stringify(decoded));
     console.log('✅ Token verified for user:', decoded.userId);
+
+    // Validate userId is a valid UUID string (not an old integer ID)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (typeof decoded.userId !== 'string' || !uuidRegex.test(decoded.userId)) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid token format. Please login again.',
+      });
+    }
 
     // Fetch user from database
     const user = await prisma.user.findUnique({

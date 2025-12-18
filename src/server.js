@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
+import prisma from './config/prisma.js';
 import authRoutes from './routes/auth.routes.js';
 import roleTestRoutes from './routes/roleTest.routes.js';
 import bookingRoutes from './routes/booking.routes.js';
@@ -9,6 +10,7 @@ import commissionsRoutes from './routes/commissions.routes.js';
 import agentRoutes from './routes/agent.routes.js';
 import glampRoutes from './routes/glamp.routes.js';
 import dbViewerRoutes from './routes/db-viewer.routes.js';
+import adminRoutes from './routes/admin.routes.js';
 import { AppError } from './utils/errors.js';
 
 dotenv.config();
@@ -21,8 +23,13 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// CORS - Allow both 3000 and 3001 for flexibility
-const allowedOrigins = ['http://localhost:3000', 'http://localhost:3001'];
+// CORS - Support both development and production origins
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? (process.env.FRONTEND_URLS || '').split(',').map(url => url.trim()).filter(Boolean)
+  : ['http://localhost:3000', 'http://localhost:3001'];
+
+console.log('🌐 Allowed CORS Origins:', allowedOrigins);
+
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl)
@@ -41,7 +48,28 @@ app.use(cors({
   exposedHeaders: ['Set-Cookie']
 }));
 
-// Test route
+// Health check endpoint for Railway and monitoring
+app.get('/health', async (req, res) => {
+  try {
+    // Check database connection
+    await prisma.$queryRaw`SELECT 1`;
+    res.status(200).json({ 
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      database: 'connected'
+    });
+  } catch (error) {
+    res.status(503).json({ 
+      status: 'error',
+      timestamp: new Date().toISOString(),
+      database: 'disconnected',
+      error: error.message
+    });
+  }
+});
+
+// Legacy ping endpoint
 app.get('/__ping', (req, res) => {
   res.status(200).json({ ok: true });
 });
@@ -63,6 +91,7 @@ app.use('/api/commissions', commissionsRoutes);
 app.use('/api/agent', agentRoutes);
 app.use('/api/glamps', glampRoutes);
 app.use('/api/db', dbViewerRoutes);
+app.use('/api/admin', adminRoutes);
 
 // 404 Handler - Must be after all routes
 app.use((req, res, next) => {

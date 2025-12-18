@@ -261,51 +261,26 @@ export const getAllBookings = async (user) => {
 /**
  * Get booking by ID with role-based access control
  */
-export const getBookingById = async (bookingId, user) => {
+export const getBookingById = async (bookingId) => {
   if (!isValidUUID(bookingId)) {
     throw new ValidationError('Invalid booking ID format');
   }
 
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
-    include: {
-      customer: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
-      agent: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
-      glamp: {
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          pricePerNight: true,
-          maxGuests: true,
-        },
-      },
+    select: {
+      id: true,
+      status: true,
+      checkInDate: true,
+      checkOutDate: true,
+      guests: true,
+      glampName: true,
+      customerName: true,
     },
   });
 
   if (!booking) {
     throw new NotFoundError('Booking');
-  }
-
-  // Role-based access control
-  if (user.role === 'CUSTOMER' && booking.customerId !== user.id) {
-    throw new ForbiddenError('You can only view your own bookings');
-  }
-
-  if (user.role === 'AGENT' && booking.agentId !== user.id) {
-    throw new ForbiddenError('You can only view bookings assigned to you');
   }
 
   // ADMIN and SUPER_ADMIN can view any booking

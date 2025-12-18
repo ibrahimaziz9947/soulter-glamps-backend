@@ -89,14 +89,17 @@ const loginWithRole = async (req, res, expectedRole) => {
     console.log('✅ Role validation passed:', user.role);
 
     // Sign JWT token with userId and role
+    console.log('🔑 Creating JWT with payload:', { userId: user.id, role: user.role });
     const token = signToken({ userId: user.id, role: user.role });
     console.log('✅ JWT token generated for user:', user.email, 'Role:', user.role);
 
-    // Set HTTP-only cookie
+    // Set HTTP-only cookie with production-ready settings
+    const isProduction = process.env.NODE_ENV === 'production';
     const cookieOptions = {
       httpOnly: true,
-      secure: false, // Set to true in production with HTTPS
-      sameSite: 'lax',
+      secure: isProduction, // HTTPS only in production
+      sameSite: isProduction ? 'none' : 'lax', // 'none' required for cross-domain in production
+      domain: process.env.COOKIE_DOMAIN || undefined, // Set domain for cross-subdomain cookies
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     };
