@@ -86,12 +86,8 @@ app.use(cors({
   maxAge: 86400 // Cache preflight requests for 24 hours
 }));
 
-// Explicit global OPTIONS handler for ALL routes (preflight requests)
-app.options('*', (req, res) => {
-  console.log('🔧 Handling OPTIONS preflight for:', req.path);
-  console.log('🔧 Origin:', req.headers.origin);
-  res.status(200).end();
-});
+// The CORS middleware above already handles OPTIONS preflight requests
+// No need for explicit app.options() handler
 
 // Health check endpoint for Railway and monitoring
 app.get('/health', async (req, res) => {
