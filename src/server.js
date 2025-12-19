@@ -67,6 +67,12 @@ app.use(cors({
       return callback(null, true);
     }
     
+    // TEMPORARY: Allow all Vercel preview and production domains
+    if (origin.includes('vercel.app') || origin.includes('soultersglamps.com')) {
+      console.log('✅ CORS allowed for Vercel/custom domain:', origin);
+      return callback(null, true);
+    }
+    
     // Check if origin is in allowed list
     if (allowedOrigins.includes(origin)) {
       console.log('✅ CORS allowed for origin:', origin);
