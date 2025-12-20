@@ -13,6 +13,7 @@ router.post('/super-admin/login', superAdminLogin);
 
 // Protected routes - Auth verification
 router.get('/me', authRequired, (req, res) => {
+  console.log('✅ /api/auth/me called - User authenticated:', req.user.email, req.user.role);
   res.status(200).json({
     success: true,
     user: {
@@ -21,6 +22,22 @@ router.get('/me', authRequired, (req, res) => {
       email: req.user.email,
       role: req.user.role,
     },
+  });
+});
+
+// Logout endpoint
+router.post('/logout', (req, res) => {
+  console.log('🔓 Logout requested');
+  res.clearCookie('auth_token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    domain: process.env.COOKIE_DOMAIN || undefined,
+    path: '/',
+  });
+  res.status(200).json({
+    success: true,
+    message: 'Logged out successfully',
   });
 });
 
