@@ -61,39 +61,22 @@ console.log('🌐 Environment:', process.env.NODE_ENV);
 console.log('🌐 Allowed CORS Origins:', JSON.stringify(allowedOrigins, null, 2));
 console.log('🌐 Total allowed origins:', allowedOrigins.length);
 
-// CORS middleware - Dynamic origin validation
+// CORS middleware - Production-ready configuration for cookie-based auth
 app.use(cors({
-  origin: function (origin, callback) {
-    console.log('📍 Incoming request from origin:', origin || 'no-origin');
-    
-    // Allow requests with no origin (mobile apps, curl, same-origin, Postman)
-    if (!origin) {
-      console.log('✅ Allowed: Request with no origin header');
-      return callback(null, true);
-    }
-    
-    // TEMPORARY: Allow all Vercel preview and production domains
-    if (origin.includes('vercel.app') || origin.includes('soultersglamps.com')) {
-      console.log('✅ CORS allowed for Vercel/custom domain:', origin);
-      return callback(null, true);
-    }
-    
-    // Check if origin is in allowed list
-    if (allowedOrigins.includes(origin)) {
-      console.log('✅ CORS allowed for origin:', origin);
-      return callback(null, true);
-    }
-    
-    // Block unauthorized origins
-    console.log('❌ CORS BLOCKED - Origin not allowed:', origin);
-    console.log('   Expected one of:', allowedOrigins);
-    callback(new Error(`CORS policy: Origin ${origin} is not allowed`));
-  },
-  credentials: true, // Allow cookies and authorization headers with credentials
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Requested-With'],
+  origin: [
+    'https://soultersglamps.com',
+    'https://soulter-glamps-frontend.vercel.app',
+    'https://soulter-glamps-frontend-dltdrnwa2-ibrahim-azizs-projects.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:5173',
+    /\.vercel\.app$/  // All Vercel preview deployments
+  ],
+  credentials: true, // CRITICAL: Must be true for cookies to work cross-origin
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   exposedHeaders: ['Set-Cookie'],
-  optionsSuccessStatus: 200, // Legacy browser support (IE11, SmartTVs)
+  optionsSuccessStatus: 200,
   preflightContinue: false,
   maxAge: 86400 // Cache preflight requests for 24 hours
 }));

@@ -99,7 +99,6 @@ const loginWithRole = async (req, res, expectedRole) => {
       httpOnly: true,
       secure: isProduction, // HTTPS only in production
       sameSite: isProduction ? 'none' : 'lax', // 'none' required for cross-domain in production
-      domain: process.env.COOKIE_DOMAIN || undefined, // Set domain for cross-subdomain cookies
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     };
