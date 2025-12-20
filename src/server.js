@@ -16,6 +16,11 @@ import { AppError } from './utils/errors.js';
 
 dotenv.config();
 
+console.log('🚀 Starting Soulter Backend...');
+console.log('📦 Environment:', process.env.NODE_ENV);
+console.log('🔌 Database URL configured:', !!process.env.DATABASE_URL);
+console.log('🔑 JWT Secret configured:', !!process.env.JWT_SECRET);
+
 const app = express();
 const PORT = process.env.PORT || 5001;
 
@@ -237,22 +242,50 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
-const server = app.listen(PORT, () => {
-  console.log('\n🚀 Soulter Backend Server');
-  console.log(`📍 Port: ${PORT}`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`✅ Ready for requests\n`);
-});
+// Test database connection and start server
+async function startServer() {
+  try {
+    console.log('🔄 Testing database connection...');
+    await prisma.$connect();
+    console.log('✅ Database connected successfully');
+    
+    // Start server
+    const server = app.listen(PORT, () => {
+      console.log('\n🚀 Soulter Backend Server');
+      console.log(`📍 Port: ${PORT}`);
+      console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`✅ Ready for requests\n`);
+    });
 
-// Handle server errors
-server.on("error", (error) => {
-  if (error.code === 'EADDRINUSE') {
-    console.error(`\n❌ Port ${PORT} is already in use`);
-    console.error(`💡 Run: netstat -ano | findstr :${PORT}`);
-    console.error(`💡 Then: taskkill /F /PID <process_id>\n`);
-  } else {
-    console.error('\n❌ Server error:', error.message, '\n');
+    // Handle server errors
+    server.on("error", (error) => {
+      if (error.code === 'EADDRINUSE') {
+        console.error(`\n❌ Port ${PORT} is already in use`);
+        console.error(`💡 Run: netstat -ano | findstr :${PORT}`);
+        console.error(`💡 Then: taskkill /F /PID <process_id>\n`);
+      } else {
+        console.error('\n❌ Server error:', error.message, '\n');
+      }
+      process.exit(1);
+    });
+
+    // Graceful shutdown
+    process.on('SIGTERM', async () => {
+      console.log('📴 SIGTERM received, shutting down gracefully...');
+      server.close(async () => {
+        await prisma.$disconnect();
+        console.log('✅ Server closed');
+        process.exit(0);
+      });
+    });
+
+  } catch (error) {
+    console.error('❌ Failed to connect to database:', error.message);
+    console.error('💡 Check your DATABASE_URL environment variable');
+    console.error('💡 Make sure the database is accessible');
+    process.exit(1);
   }
-  process.exit(1);
-});
+}
+
+// Start the server
+startServer();
