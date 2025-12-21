@@ -94,10 +94,6 @@ const loginWithRole = async (req, res, expectedRole) => {
     console.log('✅ JWT token generated for user:', user.email, 'Role:', user.role);
 
     // Set HTTP-only cookie with production-ready settings
-      sameSite: isProduction ? 'none' : 'lax', // 'none' required for cross-domain in production
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    };
     const frontendDomain = process.env.COOKIE_DOMAIN || undefined;
     const cookieOptions = {
       httpOnly: true,
