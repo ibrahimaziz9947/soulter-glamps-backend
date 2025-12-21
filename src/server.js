@@ -62,16 +62,21 @@ console.log('🌐 Allowed CORS Origins:', JSON.stringify(allowedOrigins, null, 2
 console.log('🌐 Total allowed origins:', allowedOrigins.length);
 
 // CORS middleware - Production-ready configuration for cookie-based auth
+// Enhanced CORS: allow dynamic Vercel preview URLs and production domains
 app.use(cors({
-  origin: [
-    'https://soultersglamps.com',
-    'https://soulter-glamps-frontend.vercel.app',
-    'https://soulter-glamps-frontend-dltdrnwa2-ibrahim-azizs-projects.vercel.app',
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:5173',
-    /\.vercel\.app$/  // All Vercel preview deployments
-  ],
+  origin: function(origin, callback) {
+    const allowed = allowedOrigins || [];
+    // Allow Vercel preview URLs dynamically
+    if (
+      !origin ||
+      allowed.includes(origin) ||
+      /https:\/\/[\w-]+\.vercel\.app$/.test(origin)
+    ) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS: ' + origin));
+    }
+  },
   credentials: true, // CRITICAL: Must be true for cookies to work cross-origin
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
