@@ -94,6 +94,7 @@ const loginWithRole = async (req, res, expectedRole) => {
     console.log('✅ JWT token generated for user:', user.email, 'Role:', user.role);
 
     // Set HTTP-only cookie with production-ready settings
+    const isProduction = process.env.NODE_ENV === 'production';
     const frontendDomain = process.env.COOKIE_DOMAIN || undefined;
     const cookieOptions = {
       httpOnly: true,
