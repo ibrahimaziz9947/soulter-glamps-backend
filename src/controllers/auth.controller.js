@@ -95,14 +95,18 @@ const loginWithRole = async (req, res, expectedRole) => {
 
     // Set HTTP-only cookie with production-ready settings
     const isProduction = process.env.NODE_ENV === 'production';
-    const frontendDomain = process.env.COOKIE_DOMAIN || undefined;
+    // Always set domain to .vercel.app in production unless overridden by COOKIE_DOMAIN
+    let cookieDomain = undefined;
+    if (isProduction) {
+      cookieDomain = process.env.COOKIE_DOMAIN || '.vercel.app';
+    }
     const cookieOptions = {
       httpOnly: true,
       secure: isProduction, // HTTPS only in production
       sameSite: isProduction ? 'none' : 'lax', // 'none' required for cross-domain in production
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      ...(isProduction && frontendDomain ? { domain: frontendDomain } : {})
+      ...(cookieDomain ? { domain: cookieDomain } : {})
     };
 
     res.cookie('auth_token', token, cookieOptions);
