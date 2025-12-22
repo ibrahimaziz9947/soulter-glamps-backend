@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import prisma from './config/prisma.js';
 import authRoutes from './routes/auth.routes.js';
@@ -27,7 +26,6 @@ const PORT = process.env.PORT || 5001;
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
 
 // CORS Configuration - Production-ready with explicit origin handling
 // Parse FRONTEND_URLS from environment variable (comma-separated list)

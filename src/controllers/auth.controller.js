@@ -93,35 +93,13 @@ const loginWithRole = async (req, res, expectedRole) => {
     const token = signToken({ userId: user.id, role: user.role });
     console.log('✅ JWT token generated for user:', user.email, 'Role:', user.role);
 
-    // Set HTTP-only cookie with production-ready settings
-    const isProduction = process.env.NODE_ENV === 'production';
-    // Always set domain to .vercel.app in production unless overridden by COOKIE_DOMAIN
-    let cookieDomain = undefined;
-    if (isProduction) {
-      cookieDomain = process.env.COOKIE_DOMAIN || '.vercel.app';
-    }
-    const cookieOptions = {
-      httpOnly: true,
-      secure: isProduction, // HTTPS only in production
-      sameSite: isProduction ? 'none' : 'lax', // 'none' required for cross-domain in production
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      ...(cookieDomain ? { domain: cookieDomain } : {})
-    };
-
-    res.cookie('auth_token', token, cookieOptions);
-    
-    console.log('✅ Cookie set: auth_token');
-    console.log('   User Role:', user.role);
-    console.log('   User Email:', user.email);
-    console.log('   Cookie Options:', cookieOptions);
-    console.log('   Token (first 20 chars):', token.substring(0, 20) + '...');
-
-    // Return success response (cookie-only auth, no token in body)
+    // Return JWT in response body (token-based auth)
     console.log('🟢 Sending success response for role:', user.role);
+    console.log('   Token (first 20 chars):', token.substring(0, 20) + '...');
     console.log('========================================\n');
     return res.status(200).json({
       success: true,
+      token,
       user: {
         id: user.id,
         name: user.name,

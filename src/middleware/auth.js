@@ -6,24 +6,15 @@ import prisma from '../config/prisma.js';
  */
 export const authRequired = async (req, res, next) => {
   try {
+
     console.log('🔐 Auth check for:', req.method, req.originalUrl);
     console.log('   Origin:', req.headers.origin);
-    console.log('   Cookies present:', !!req.cookies);
-    console.log('   auth_token cookie:', req.cookies?.auth_token ? 'YES' : 'NO');
-    
     let token;
-
-    // 1. Try to get token from auth_token cookie (primary method)
-    if (req.cookies && req.cookies.auth_token) {
-      token = req.cookies.auth_token;
-      console.log('🔵 Token found in cookie');
-    }
-    // 2. Fallback: Get token from Authorization header
-    else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    // Only get token from Authorization header (Bearer)
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
       token = req.headers.authorization.substring(7);
       console.log('🔵 Token found in Authorization header');
     }
-
     if (!token) {
       console.log('❌ No token found - rejecting request');
       return res.status(401).json({
