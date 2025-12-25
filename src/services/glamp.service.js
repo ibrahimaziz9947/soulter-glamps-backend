@@ -14,7 +14,7 @@ const isValidUUID = (id) => {
  * @access ADMIN, SUPER_ADMIN
  */
 export const createGlamp = async (glampData) => {
-  const { name, description, pricePerNight, maxGuests, status } = glampData;
+  const { name, description, pricePerNight, maxGuests, status, features = [], amenities = [] } = glampData;
 
   // Validate required fields
   if (!name || !description || !pricePerNight || !maxGuests) {
@@ -42,6 +42,8 @@ export const createGlamp = async (glampData) => {
       pricePerNight: parseInt(pricePerNight),
       maxGuests: parseInt(maxGuests),
       status: status || 'ACTIVE',
+      features,
+      amenities
     },
   });
 

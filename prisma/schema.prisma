@@ -71,6 +71,8 @@ model Glamp {
   pricePerNight Int // Price in smallest currency unit (e.g., cents)
   maxGuests     Int
   status        GlampStatus @default(ACTIVE)
+  features      String[]    @default([]) // List of features (e.g., ["WiFi", "Pool"])
+  amenities     String[]    @default([]) // List of amenities (e.g., ["
 
   // Relations
   bookings Booking[] // All bookings for this glamp
