@@ -50,10 +50,24 @@ const getFrontendUrls = () => {
   return urls;
 };
 
-// Determine allowed origins based on environment
+/* Determine allowed origins based on environment
 const allowedOrigins = process.env.NODE_ENV === 'production'
   ? getFrontendUrls()
   : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173', 'https://soulter-glamps.com'];
+
+if (!origin || origin.includes('.vercel.app')) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+  })
+);
 
 console.log('🌐 Environment:', process.env.NODE_ENV);
 console.log('🌐 Allowed CORS Origins:', JSON.stringify(allowedOrigins, null, 2));
@@ -87,7 +101,56 @@ app.use(cors({
 // The CORS middleware above already handles OPTIONS preflight requests
 // No need for explicit app.options() handler
 
-// Health check endpoint for Railway and monitoring
+// Health check endpoint for Railway and monitoring */
+
+
+const allowedOrigins =
+  process.env.NODE_ENV === 'production'
+    ? [
+        'https://soulter-glamps.com',
+      ]
+    : [
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://localhost:5173',
+        'https://soulter-glamps.com',
+      ];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow server-to-server & tools (Postman, cron, etc.)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      // Allow explicit origins
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // ✅ Allow ALL Vercel preview + production URLs
+      if (/^https:\/\/.*\.vercel\.app$/.test(origin)) {
+        return callback(null, true);
+      }
+
+      console.error('❌ Blocked by CORS:', origin);
+      callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Set-Cookie'],
+    optionsSuccessStatus: 200,
+  })
+);
+
+// Debug logs (keep these)
+console.log('🌐 Environment:', process.env.NODE_ENV);
+console.log('🌐 Static allowed origins:', allowedOrigins);
+console.log('🌐 Vercel preview domains allowed: *.vercel.app');
+
+
 app.get('/health', async (req, res) => {
   try {
     // Check database connection
