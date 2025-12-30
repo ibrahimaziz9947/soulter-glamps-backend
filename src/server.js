@@ -53,7 +53,7 @@ const getFrontendUrls = () => {
 // Determine allowed origins based on environment
 const allowedOrigins = process.env.NODE_ENV === 'production'
   ? getFrontendUrls()
-  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173'];
+  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173', 'https://soulter-glamps.com'];
 
 console.log('🌐 Environment:', process.env.NODE_ENV);
 console.log('🌐 Allowed CORS Origins:', JSON.stringify(allowedOrigins, null, 2));
