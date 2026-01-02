@@ -143,7 +143,7 @@ const prisma = new PrismaClient()
 
 /**
  * Get all bookings created by an agent
- */
+ *
 export async function getBookingsByAgent(agentId) {
   return prisma.booking.findMany({
     where: { agentId },
@@ -157,7 +157,33 @@ export async function getBookingsByAgent(agentId) {
       },
     },
   })
+} */
+export const getAgentBookings = async (req, res) => {
+  try {
+    const agentId = req.user.id
+
+    const bookings = await prisma.booking.findMany({
+      where: {
+        agentId
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    })
+
+    return res.json({
+      success: true,
+      data: bookings
+    })
+  } catch (error) {
+    console.error('Get Agent Bookings Error:', error)
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch agent bookings'
+    })
+  }
 }
+
 
 /**
  * Create a booking as an agent
@@ -265,5 +291,10 @@ export async function getAgentBookingById(agentId, bookingId) {
       },
     },
   })
-}
+} 
+
+
+
+
+
 
