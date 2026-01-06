@@ -161,7 +161,7 @@ export async function createBookingAsAgent(agentId, payload) {
   const {
     customerName,
     customerEmail,
-    customerPhone, // kept for future use (not stored)
+    customerPhone,
     glampId,
     checkInDate,
     checkOutDate,
@@ -179,11 +179,9 @@ export async function createBookingAsAgent(agentId, payload) {
     throw new Error('Missing required fields')
   }
 
-  // 🔹 Fetch glamp (FIX: include name)
   const glamp = await prisma.glamp.findUnique({
     where: { id: glampId },
     select: {
-      name: true,
       pricePerNight: true,
     },
   })
@@ -192,7 +190,6 @@ export async function createBookingAsAgent(agentId, payload) {
     throw new Error('Invalid glamp selected')
   }
 
-  // Convert dates
   const checkIn = new Date(checkInDate)
   const checkOut = new Date(checkOutDate)
 
@@ -200,24 +197,20 @@ export async function createBookingAsAgent(agentId, payload) {
     throw new Error('Invalid check-in or check-out date')
   }
 
-  // Calculate nights
-  const nights =
-    Math.max(
-      Math.ceil(
-        (checkOut.getTime() - checkIn.getTime()) /
-          (1000 * 60 * 60 * 24)
-      ),
-      1
-    )
+  const nights = Math.max(
+    Math.ceil(
+      (checkOut.getTime() - checkIn.getTime()) /
+        (1000 * 60 * 60 * 24)
+    ),
+    1
+  )
 
-  // Calculate total amount
   const totalAmount = nights * glamp.pricePerNight
 
   return prisma.booking.create({
     data: {
       customerName,
-      customerEmail, // optional but useful
-      glampName: glamp.name, // ✅ FIXED HERE
+      customerEmail,
       checkInDate: checkIn,
       checkOutDate: checkOut,
       guests,
@@ -267,6 +260,7 @@ export async function getAgentBookingById(agentId, bookingId) {
     },
   })
 }
+
 
 
 
