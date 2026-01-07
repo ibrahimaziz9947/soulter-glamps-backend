@@ -249,8 +249,16 @@ export const updateCommissionStatus = async (commissionId, status) => {
         select: {
           id: true,
           customerName: true,
+          checkInDate: true,
+          checkOutDate: true,
           totalAmount: true,
           status: true,
+          glamp: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
       },
     },
