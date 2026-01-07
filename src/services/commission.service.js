@@ -35,7 +35,7 @@ export const createCommissionForBooking = async (bookingId) => {
   const commissionAmount = Math.round(booking.totalAmount * COMMISSION_RATE);
 
   // Create the commission
-  const commission = await prisma.agentCommission.create({
+  const commission = await prisma.commission.create({
     data: {
       amount: commissionAmount,
       status: 'UNPAID',
@@ -55,8 +55,7 @@ export const createCommissionForBooking = async (bookingId) => {
         select: {
           id: true,
           customerName: true,
-          checkIn: true,
-          nights: true,
+          checkInDate: true,
           totalAmount: true,
           status: true,
           glamp: {
@@ -87,7 +86,7 @@ export const getAgentCommissions = async (agentId, filters = {}, pagination = {}
   };
 
   const [commissions, total] = await Promise.all([
-    prisma.agentCommission.findMany({
+    prisma.commission.findMany({
       where,
       skip,
       take,
@@ -97,9 +96,8 @@ export const getAgentCommissions = async (agentId, filters = {}, pagination = {}
           select: {
             id: true,
             customerName: true,
-            customerPhone: true,
-            checkIn: true,
-            nights: true,
+            checkInDate: true,
+            checkOutDate: true,
             totalAmount: true,
             status: true,
             glamp: {
@@ -112,7 +110,7 @@ export const getAgentCommissions = async (agentId, filters = {}, pagination = {}
         },
       },
     }),
-    prisma.agentCommission.count({ where }),
+    prisma.commission.count({ where }),
   ]);
 
   return { commissions, total };
@@ -132,7 +130,7 @@ export const getAllCommissions = async (filters = {}, pagination = {}) => {
   };
 
   const [commissions, total] = await Promise.all([
-    prisma.agentCommission.findMany({
+    prisma.commission.findMany({
       where,
       skip,
       take,
@@ -149,9 +147,8 @@ export const getAllCommissions = async (filters = {}, pagination = {}) => {
           select: {
             id: true,
             customerName: true,
-            customerPhone: true,
-            checkIn: true,
-            nights: true,
+            checkInDate: true,
+            checkOutDate: true,
             totalAmount: true,
             status: true,
             glamp: {
@@ -164,7 +161,7 @@ export const getAllCommissions = async (filters = {}, pagination = {}) => {
         },
       },
     }),
-    prisma.agentCommission.count({ where }),
+    prisma.commission.count({ where }),
   ]);
 
   return { commissions, total };
@@ -175,7 +172,7 @@ export const getAllCommissions = async (filters = {}, pagination = {}) => {
  * @access AGENT (own), ADMIN, SUPER_ADMIN (all)
  */
 export const getCommissionById = async (commissionId, user) => {
-  const commission = await prisma.agentCommission.findUnique({
+  const commission = await prisma.commission.findUnique({
     where: { id: commissionId },
     include: {
       agent: {
@@ -189,18 +186,16 @@ export const getCommissionById = async (commissionId, user) => {
         select: {
           id: true,
           customerName: true,
-          customerPhone: true,
-          customerEmail: true,
-          checkIn: true,
-          nights: true,
+          checkInDate: true,
+          checkOutDate: true,
           totalAmount: true,
-          paidAmount: true,
           status: true,
+          glampName: true,
           glamp: {
             select: {
               id: true,
               name: true,
-              basePrice: true,
+              pricePerNight: true,
             },
           },
         },
@@ -231,7 +226,7 @@ export const updateCommissionStatus = async (commissionId, status) => {
     throw new ValidationError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
   }
 
-  const commission = await prisma.agentCommission.findUnique({
+  const commission = await prisma.commission.findUnique({
     where: { id: commissionId },
   });
 
@@ -239,7 +234,7 @@ export const updateCommissionStatus = async (commissionId, status) => {
     throw new NotFoundError('Commission');
   }
 
-  const updatedCommission = await prisma.agentCommission.update({
+  const updatedCommission = await prisma.commission.update({
     where: { id: commissionId },
     data: { status },
     include: {
@@ -270,19 +265,19 @@ export const updateCommissionStatus = async (commissionId, status) => {
  */
 export const getCommissionSummary = async (agentId) => {
   const [totalEarned, totalPaid, totalUnpaid, commissionCount] = await Promise.all([
-    prisma.agentCommission.aggregate({
+    prisma.commission.aggregate({
       where: { agentId },
       _sum: { amount: true },
     }),
-    prisma.agentCommission.aggregate({
+    prisma.commission.aggregate({
       where: { agentId, status: 'PAID' },
       _sum: { amount: true },
     }),
-    prisma.agentCommission.aggregate({
+    prisma.commission.aggregate({
       where: { agentId, status: 'UNPAID' },
       _sum: { amount: true },
     }),
-    prisma.agentCommission.count({
+    prisma.commission.count({
       where: { agentId },
     }),
   ]);

@@ -30,6 +30,11 @@ enum BookingStatus {
   COMPLETED
 }
 
+enum CommissionStatus {
+  UNPAID
+  PAID
+}
+
 // ============================================
 // USER MODEL
 // ============================================
@@ -91,7 +96,7 @@ model Booking {
   id           String        @id @default(uuid())
   checkInDate  DateTime
   checkOutDate DateTime
-  guests       Int @default(1) // Number of guests
+  guests       Int           @default(1) // Number of guests
   totalAmount  Int // Total booking amount in smallest currency unit
   status       BookingStatus @default(PENDING)
 
@@ -126,8 +131,9 @@ model Booking {
 // ============================================
 // Represents commission earned by an agent for referring a booking
 model Commission {
-  id     String @id @default(uuid())
+  id     String           @id @default(uuid())
   amount Int // Commission amount in smallest currency unit
+  status CommissionStatus @default(UNPAID) // Payment status
 
   // Relations
   agent   User   @relation(fields: [agentId], references: [id], onDelete: Cascade)
@@ -140,4 +146,5 @@ model Commission {
 
   @@index([agentId])
   @@index([bookingId])
+  @@index([status])
 }
