@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import { ValidationError, NotFoundError, ForbiddenError } from '../utils/errors.js';
+import { createCommissionForBooking } from './commission.service.js';
 
 // UUID validation helper
 const isValidUUID = (id) => {
@@ -103,15 +104,29 @@ export const updateBookingStatus = async (bookingId, newStatus) => {
 
   console.log('🔄 ADMIN UPDATE STATUS:', bookingId, '→', newStatus);
 
-  // Get current booking
+  // Get current booking (with agentId for commission logic)
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
-    select: { id: true, status: true },
+    select: { 
+      id: true, 
+      status: true,
+      agentId: true, // Need this for commission creation
+      totalAmount: true, // For logging
+    },
   });
 
   if (!booking) {
     throw new NotFoundError('Booking');
   }
+
+  console.log('📊 Booking details:', {
+    bookingId: booking.id,
+    currentStatus: booking.status,
+    newStatus,
+    agentId: booking.agentId,
+    hasAgent: !!booking.agentId,
+    totalAmount: booking.totalAmount,
+  });
 
   // Validate status transitions
   const currentStatus = booking.status;
@@ -148,6 +163,45 @@ export const updateBookingStatus = async (bookingId, newStatus) => {
       },
     },
   });
+
+  console.log('✅ Booking status updated successfully');
+
+  // ============================================
+  // COMMISSION CREATION LOGIC
+  // ============================================
+  // Create commission if status changed to CONFIRMED or COMPLETED AND booking has an agent
+  if ((newStatus === 'CONFIRMED' || newStatus === 'COMPLETED') && booking.agentId) {
+    console.log('💰 Triggering commission creation for agent booking...');
+    console.log('   - Booking ID:', bookingId);
+    console.log('   - Agent ID:', booking.agentId);
+    console.log('   - New Status:', newStatus);
+    
+    try {
+      const commission = await createCommissionForBooking(bookingId);
+      if (commission) {
+        console.log('✅ Commission created successfully:', {
+          commissionId: commission.id,
+          amount: commission.amount,
+          status: commission.status,
+        });
+      } else {
+        console.log('ℹ️ Commission already exists or not applicable');
+      }
+    } catch (error) {
+      console.error('❌ Error creating commission:', error.message);
+      console.error('   Stack:', error.stack);
+      // Don't fail the booking status update if commission creation fails
+      // This ensures booking flow continues even if commission logic has issues
+    }
+  } else {
+    console.log('ℹ️ Commission NOT created:', {
+      reason: !booking.agentId 
+        ? 'No agent assigned to this booking (customer direct booking)'
+        : `Status is ${newStatus} (only CONFIRMED/COMPLETED trigger commissions)`,
+      agentId: booking.agentId || 'N/A',
+      status: newStatus,
+    });
+  }
 
   return updatedBooking;
 };
