@@ -35,7 +35,13 @@ export const createBooking = asyncHandler(async (req, res) => {
  * @access Auth required
  */
 export const getAllBookings = asyncHandler(async (req, res) => {
+  console.log('🎯 [BOOKING CONTROLLER] getAllBookings() called');
+  console.log('🎯 [BOOKING CONTROLLER] Route: GET /api/bookings');
+  console.log('🎯 [BOOKING CONTROLLER] User:', req.user?.role);
+
   const bookings = await bookingService.getAllBookings(req.user);
+
+  console.log('📤 [BOOKING CONTROLLER] Returning', bookings.length, 'bookings');
 
   return res.status(200).json({
     success: true,

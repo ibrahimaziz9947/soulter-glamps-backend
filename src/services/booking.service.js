@@ -217,6 +217,10 @@ export const createBooking = async (bookingData) => {
  * Get all bookings with role-based filtering
  */
 export const getAllBookings = async (user) => {
+  console.log('📋 [BOOKING SERVICE] getAllBookings() called');
+  console.log('📋 [BOOKING SERVICE] User role:', user.role);
+  console.log('📋 [BOOKING SERVICE] FILE: booking.service.js');
+
   const where = {};
 
   // Role-based filtering
@@ -254,6 +258,12 @@ export const getAllBookings = async (user) => {
     },
     orderBy: { createdAt: 'desc' },
   });
+
+  console.log('✅ [BOOKING SERVICE] Bookings fetched:', bookings.length);
+  if (bookings.length > 0) {
+    console.log('📊 [BOOKING SERVICE] First booking glamp:', bookings[0].glamp);
+    console.log('🏕️ [ADMIN DASHBOARD] Recent booking glamp:', bookings[0].glamp);
+  }
 
   return bookings;
 };
