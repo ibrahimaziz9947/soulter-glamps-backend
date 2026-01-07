@@ -7,8 +7,13 @@ import { asyncHandler } from '../utils/errors.js';
  * @access ADMIN, SUPER_ADMIN
  */
 export const getAllBookings = asyncHandler(async (req, res) => {
+  console.log('🎯 CONTROLLER: admin-booking.controller.getAllBookings() called');
+  console.log('🎯 ROUTE: GET /api/admin/bookings');
+  
   const bookings = await adminBookingService.getAllBookings();
 
+  console.log('📤 CONTROLLER: Returning', bookings.length, 'bookings');
+  
   return res.status(200).json({
     success: true,
     count: bookings.length,

@@ -12,7 +12,8 @@ const isValidUUID = (id) => {
  * Get all bookings (Admin view)
  */
 export const getAllBookings = async () => {
-  console.log('📋 ADMIN FETCH BOOKINGS');
+  console.log('📋 ADMIN FETCH BOOKINGS - getAllBookings() called');
+  console.log('📋 SERVICE FILE: admin-booking.service.js');
 
   const bookings = await prisma.booking.findMany({
     orderBy: { createdAt: 'desc' },
@@ -36,6 +37,13 @@ export const getAllBookings = async () => {
       },
     },
   });
+
+  console.log('✅ ADMIN BOOKINGS FETCHED:', bookings.length);
+  console.log('📊 Sample booking data (first booking):');
+  if (bookings.length > 0) {
+    console.log(JSON.stringify(bookings[0], null, 2));
+    console.log('🏕️ First booking glamp object:', bookings[0].glamp);
+  }
 
   return bookings;
 };
