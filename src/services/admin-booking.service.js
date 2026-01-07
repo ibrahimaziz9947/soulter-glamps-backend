@@ -29,6 +29,11 @@ export const getAllBookings = async () => {
           name: true,
         },
       },
+      glamp: {
+        select: {
+          name: true,
+        },
+      },
     },
   });
 
@@ -161,6 +166,11 @@ export const updateBookingStatus = async (bookingId, newStatus) => {
           name: true,
         },
       },
+      glamp: {
+        select: {
+          name: true,
+        },
+      },
     },
   });
 
@@ -265,6 +275,11 @@ export const assignAgent = async (bookingId, agentId) => {
           id: true,
           name: true,
           email: true,
+        },
+      },
+      glamp: {
+        select: {
+          name: true,
         },
       },
     },
