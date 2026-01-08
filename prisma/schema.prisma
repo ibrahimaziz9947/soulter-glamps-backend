@@ -58,6 +58,10 @@ model User {
   agentBookings    Booking[]    @relation("AgentBookings") // Bookings referred as agent
   commissions      Commission[] // Commissions earned as agent
 
+  // Finance relations
+  expensesCreated Expense[] @relation("ExpenseCreator")
+  expensesUpdated Expense[] @relation("ExpenseUpdater")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -147,4 +151,59 @@ model Commission {
   @@index([agentId])
   @@index([bookingId])
   @@index([status])
+}
+
+// ============================================
+// EXPENSE CATEGORY MODEL
+// ============================================
+// Represents categories for organizing expenses
+model ExpenseCategory {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+  active      Boolean @default(true)
+
+  // Relations
+  expenses Expense[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active])
+  @@index([name])
+}
+
+// ============================================
+// EXPENSE MODEL
+// ============================================
+// Represents business expenses with audit trail and soft delete support
+model Expense {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  amount      Int // Amount in smallest currency unit (e.g., cents)
+  date        DateTime @default(now())
+  vendor      String?
+  receiptUrl  String?
+
+  // Relations
+  category   ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryId String?
+
+  createdBy   User   @relation("ExpenseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String
+
+  updatedBy   User?   @relation("ExpenseUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedById String?
+
+  // Soft delete
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([createdById])
+  @@index([date])
+  @@index([deletedAt])
 }

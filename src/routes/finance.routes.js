@@ -2,10 +2,18 @@ import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/roles.js';
 import * as financeController from '../controllers/finance.controller.js';
+import * as categoryController from '../modules/finance/categories/category.controller.js';
+import expenseRoutes from '../modules/finance/expenses/expense.routes.js';
 
 const router = express.Router();
 
 // All finance routes require ADMIN or SUPER_ADMIN access
+
+// Category routes
+router.get('/finance/categories', authRequired, requireAdmin, categoryController.getAllCategories);
+
+// Mount modular expense routes
+router.use('/finance/expenses', expenseRoutes);
 
 // Payment (Income) routes
 router.post('/finance/payments', authRequired, requireAdmin, financeController.recordPayment);
