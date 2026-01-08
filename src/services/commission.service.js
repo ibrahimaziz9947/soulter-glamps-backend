@@ -220,19 +220,31 @@ export const getCommissionById = async (commissionId, user) => {
  * @access ADMIN, SUPER_ADMIN
  */
 export const updateCommissionStatus = async (commissionId, status) => {
+  console.log('🔧 [COMMISSION SERVICE] updateCommissionStatus called');
+  console.log('   Commission ID:', commissionId);
+  console.log('   Commission ID type:', typeof commissionId);
+  console.log('   Requested status:', status);
+
   const validStatuses = ['UNPAID', 'PAID'];
 
   if (!validStatuses.includes(status)) {
+    console.log('❌ [COMMISSION SERVICE] Invalid status:', status);
     throw new ValidationError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
   }
+
+  console.log('✅ [COMMISSION SERVICE] Status validation passed');
 
   const commission = await prisma.commission.findUnique({
     where: { id: commissionId },
   });
 
   if (!commission) {
+    console.log('❌ [COMMISSION SERVICE] Commission not found:', commissionId);
     throw new NotFoundError('Commission');
   }
+
+  console.log('📊 [COMMISSION SERVICE] Current commission status:', commission.status);
+  console.log('🔄 [COMMISSION SERVICE] Updating to:', status);
 
   const updatedCommission = await prisma.commission.update({
     where: { id: commissionId },
@@ -263,6 +275,9 @@ export const updateCommissionStatus = async (commissionId, status) => {
       },
     },
   });
+
+  console.log('✅ [COMMISSION SERVICE] Commission updated successfully');
+  console.log('   New status:', updatedCommission.status);
 
   return updatedCommission;
 };

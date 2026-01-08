@@ -69,7 +69,9 @@ export const getAllCommissions = asyncHandler(async (req, res) => {
  */
 export const getCommissionById = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const commission = await commissionService.getCommissionById(parseInt(id), req.user);
+  console.log('🔍 [COMMISSION] getCommissionById called with ID:', id);
+  
+  const commission = await commissionService.getCommissionById(id, req.user);
 
   return res.status(200).json({
     success: true,
@@ -86,7 +88,17 @@ export const updateCommissionStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
 
-  const commission = await commissionService.updateCommissionStatus(parseInt(id), status);
+  console.log('🔄 [COMMISSION STATUS UPDATE] Request received');
+  console.log('   Commission ID:', id);
+  console.log('   New Status:', status);
+  console.log('   Admin ID:', req.user?.id);
+  console.log('   Admin Role:', req.user?.role);
+
+  const commission = await commissionService.updateCommissionStatus(id, status);
+
+  console.log('✅ [COMMISSION STATUS UPDATE] Success');
+  console.log('   Updated commission ID:', commission.id);
+  console.log('   New status:', commission.status);
 
   return res.status(200).json({
     success: true,
@@ -102,7 +114,9 @@ export const updateCommissionStatus = asyncHandler(async (req, res) => {
  */
 export const getAgentCommissionSummary = asyncHandler(async (req, res) => {
   const { agentId } = req.params;
-  const summary = await commissionService.getCommissionSummary(parseInt(agentId));
+  console.log('📊 [COMMISSION SUMMARY] Fetching for agent ID:', agentId);
+  
+  const summary = await commissionService.getCommissionSummary(agentId);
 
   return res.status(200).json({
     success: true,
