@@ -4,6 +4,7 @@ import { requireAdmin } from '../middleware/roles.js';
 import * as financeController from '../controllers/finance.controller.js';
 import * as categoryController from '../modules/finance/categories/category.controller.js';
 import expenseRoutes from '../modules/finance/expenses/expense.routes.js';
+import incomeRoutes from '../modules/finance/income/income.routes.js';
 
 const router = express.Router();
 
@@ -15,9 +16,8 @@ router.get('/finance/categories', authRequired, requireAdmin, categoryController
 // Mount modular expense routes
 router.use('/finance/expenses', expenseRoutes);
 
-// Payment (Income) routes
-router.post('/finance/payments', authRequired, requireAdmin, financeController.recordPayment);
-router.get('/finance/payments', authRequired, requireAdmin, financeController.getPaymentHistory);
+// Mount modular income routes
+router.use('/finance/income', incomeRoutes);
 
 // Commission routes
 router.post('/finance/commissions', authRequired, requireAdmin, financeController.recordCommission);

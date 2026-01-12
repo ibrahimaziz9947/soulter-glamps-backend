@@ -245,3 +245,86 @@ After confirming all tests pass:
 3. Implement pagination utilities
 4. Add logging middleware
 5. Set up error tracking
+
+---
+
+## 💰 Income API Testing
+
+### Automated Test Suite
+
+Run the comprehensive income API test suite:
+
+```bash
+node test-income-apis.js
+```
+
+**Prerequisites:**
+- Server must be running on `http://localhost:5001`
+- Database must be seeded with admin user (`admin@soulter.com` / `admin123`)
+- At least one booking should exist for booking-linked income tests
+
+**Test Coverage (18 tests):**
+1. ✅ Admin login
+2. ✅ Get test booking ID
+3. ✅ Create MANUAL income (success)
+4. ❌ Create BOOKING income without bookingId (validation fail)
+5. ❌ Create BOOKING income with invalid bookingId (404)
+6. ✅ Create BOOKING income with valid bookingId (success)
+7. ✅ List all income records (pagination)
+8. ✅ Get income by ID
+9. ✅ Update income record
+10. ✅ Get income summary (aggregations)
+11. ✅ Soft delete income
+12. ✅ Verify income hidden from list
+13. ❌ Try to get deleted income (404)
+14. ✅ Restore deleted income
+15. ✅ Verify income appears in list again
+16. ❌ Invalid amount validation
+17. ❌ Invalid currency validation
+18. ❌ Unauthorized access (no token)
+
+**Expected Output:**
+```
+🧪 Starting Income API Tests
+============================================================
+🔐 Step 1: Login as ADMIN
+✅ Admin login successful
+
+[... continues for all 18 tests ...]
+
+============================================================
+✅ All tests completed!
+============================================================
+```
+
+### Manual Testing
+
+For manual testing with curl/Postman, see [INCOME_API_TESTING.md](INCOME_API_TESTING.md)
+
+**Quick Test Commands:**
+
+```bash
+# Set token
+TOKEN="your-admin-jwt-token"
+
+# Create income
+curl -X POST http://localhost:5001/api/finance/income \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"amount":10000,"currency":"USD","source":"MANUAL"}'
+
+# List income
+curl http://localhost:5001/api/finance/income \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+## 📝 Test Files Reference
+
+| File | Purpose | Command |
+|------|---------|---------|
+| `test-auth.js` | Authentication tests | `node test-auth.js` |
+| `test-booking-apis.js` | Booking CRUD tests | `node test-booking-apis.js` |
+| `test-income-apis.js` | **Income API tests (NEW)** | `node test-income-apis.js` |
+| `test-frontend-booking.js` | Booking flow E2E | `node test-frontend-booking.js` |

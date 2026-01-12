@@ -53,6 +53,18 @@ enum ExpenseApprovalAction {
   DELETE
 }
 
+enum IncomeSource {
+  BOOKING
+  MANUAL
+  OTHER
+}
+
+enum IncomeStatus {
+  DRAFT
+  CONFIRMED
+  CANCELLED
+}
+
 // ============================================
 // USER MODEL
 // ============================================
@@ -85,6 +97,10 @@ model User {
 
   // Expense approval events
   expenseApprovalEvents ExpenseApprovalEvent[]
+
+  // Income relations
+  incomesCreated Income[] @relation("IncomeCreator")
+  incomesUpdated Income[] @relation("IncomeUpdater")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -143,6 +159,7 @@ model Booking {
   glampName    String @default("Unknown") // Snapshot of glamp name at booking time
 
   commission Commission? // Commission generated for this booking (if agent involved)
+  incomes    Income[] // Income records linked to this booking
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -280,4 +297,43 @@ model ExpenseApprovalEvent {
   @@index([performedById])
   @@index([action])
   @@index([createdAt])
+}
+
+// ============================================
+// INCOME MODEL
+// ============================================
+// Represents income/revenue received by the business
+// Tracks payments from bookings and manual income entries
+model Income {
+  id           String       @id @default(uuid())
+  amount       Int // Amount in smallest currency unit (e.g., cents)
+  currency     String       @default("USD")
+  dateReceived DateTime     @default(now())
+  source       IncomeSource
+  status       IncomeStatus @default(CONFIRMED)
+  reference    String? // External reference (invoice number, payment ID, etc.)
+  notes        String?
+
+  // Relations
+  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  bookingId String?
+
+  createdBy   User   @relation("IncomeCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String
+
+  updatedBy   User?   @relation("IncomeUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedById String?
+
+  // Soft delete
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([bookingId])
+  @@index([dateReceived])
+  @@index([source])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([createdById])
 }
