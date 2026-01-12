@@ -1,5 +1,5 @@
 import prisma from '../../../config/prisma.js';
-import { NotFoundError, ValidationError } from '../../../utils/errors.js';
+import { NotFoundError, ValidationError, ForbiddenError } from '../../../utils/errors.js';
 import { getPagination, getPaginationMeta } from '../../../utils/pagination.js';
 
 /**
@@ -217,6 +217,45 @@ export const getExpenseById = async (id) => {
           role: true,
         },
       },
+      submittedBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+        },
+      },
+      approvedBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+        },
+      },
+      rejectedBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+        },
+      },
+      approvalEvents: {
+        include: {
+          performedBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      },
     },
   });
 
@@ -249,6 +288,11 @@ export const updateExpense = async (id, data, userId) => {
 
   if (!existingExpense) {
     throw new NotFoundError('Expense');
+  }
+
+  // Check if expense can be edited (only DRAFT or REJECTED status)
+  if (existingExpense.status !== 'DRAFT' && existingExpense.status !== 'REJECTED') {
+    throw new ValidationError(`Cannot update expense with status ${existingExpense.status}. Only DRAFT or REJECTED expenses can be edited.`);
   }
 
   // Validate categoryId if being updated
@@ -373,6 +417,11 @@ export const softDeleteExpense = async (id, userId) => {
     throw new NotFoundError('Expense');
   }
 
+  // Check if expense can be deleted (block SUBMITTED/APPROVED)
+  if (existingExpense.status === 'SUBMITTED' || existingExpense.status === 'APPROVED') {
+    throw new ValidationError(`Cannot delete expense with status ${existingExpense.status}. Please reject or cancel the expense first.`);
+  }
+
   // Soft delete by setting deletedAt timestamp
   await prisma.expense.update({
     where: { id },
@@ -382,4 +431,324 @@ export const softDeleteExpense = async (id, userId) => {
   });
 
   return true;
+};
+
+/**
+ * Submit an expense for approval
+ * @param {string} id - Expense ID
+ * @param {string} userId - ID of the user submitting the expense
+ * @returns {Promise<object>} Updated expense
+ */
+export const submitExpense = async (id, userId) => {
+  if (!isValidUUID(id)) {
+    throw new ValidationError('Invalid expense ID format');
+  }
+
+  return await prisma.$transaction(async (tx) => {
+    // Get expense with current status
+    const expense = await tx.expense.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+      },
+    });
+
+    if (!expense) {
+      throw new NotFoundError('Expense');
+    }
+
+    // Check if submission is allowed
+    if (expense.status !== 'DRAFT' && expense.status !== 'REJECTED') {
+      throw new ValidationError(`Cannot submit expense with status ${expense.status}. Only DRAFT or REJECTED expenses can be submitted.`);
+    }
+
+    const fromStatus = expense.status;
+
+    // Update expense to SUBMITTED
+    const updatedExpense = await tx.expense.update({
+      where: { id },
+      data: {
+        status: 'SUBMITTED',
+        submittedAt: new Date(),
+        submittedById: userId,
+      },
+      include: {
+        category: true,
+        createdBy: {
+          select: { id: true, name: true, email: true, role: true },
+        },
+        submittedBy: {
+          select: { id: true, name: true, email: true, role: true },
+        },
+      },
+    });
+
+    // Create approval event
+    await tx.expenseApprovalEvent.create({
+      data: {
+        expenseId: id,
+        action: 'SUBMIT',
+        fromStatus,
+        toStatus: 'SUBMITTED',
+        performedById: userId,
+      },
+    });
+
+    return updatedExpense;
+  });
+};
+
+/**
+ * Approve an expense
+ * @param {string} id - Expense ID
+ * @param {string} userId - ID of the user approving the expense
+ * @param {string} comment - Optional approval comment
+ * @returns {Promise<object>} Updated expense
+ */
+export const approveExpense = async (id, userId, comment = null) => {
+  if (!isValidUUID(id)) {
+    throw new ValidationError('Invalid expense ID format');
+  }
+
+  return await prisma.$transaction(async (tx) => {
+    // Get expense with current status and creator info
+    const expense = await tx.expense.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+      },
+      include: {
+        createdBy: {
+          select: { id: true, role: true },
+        },
+      },
+    });
+
+    if (!expense) {
+      throw new NotFoundError('Expense');
+    }
+
+    // Check if approval is allowed
+    if (expense.status !== 'SUBMITTED') {
+      throw new ValidationError(`Cannot approve expense with status ${expense.status}. Only SUBMITTED expenses can be approved.`);
+    }
+
+    // Get approver info
+    const approver = await tx.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true },
+    });
+
+    if (!approver) {
+      throw new NotFoundError('User');
+    }
+
+    // ADMIN cannot approve their own expense, SUPER_ADMIN can
+    if (approver.role === 'ADMIN' && expense.createdById === userId) {
+      throw new ForbiddenError('You cannot approve your own expense. Please ask another admin or super admin.');
+    }
+
+    const fromStatus = expense.status;
+
+    // Update expense to APPROVED
+    const updatedExpense = await tx.expense.update({
+      where: { id },
+      data: {
+        status: 'APPROVED',
+        approvedAt: new Date(),
+        approvedById: userId,
+        approvalComment: comment,
+      },
+      include: {
+        category: true,
+        createdBy: {
+          select: { id: true, name: true, email: true, role: true },
+        },
+        approvedBy: {
+          select: { id: true, name: true, email: true, role: true },
+        },
+      },
+    });
+
+    // Create approval event
+    await tx.expenseApprovalEvent.create({
+      data: {
+        expenseId: id,
+        action: 'APPROVE',
+        fromStatus,
+        toStatus: 'APPROVED',
+        comment,
+        performedById: userId,
+      },
+    });
+
+    return updatedExpense;
+  });
+};
+
+/**
+ * Reject an expense
+ * @param {string} id - Expense ID
+ * @param {string} userId - ID of the user rejecting the expense
+ * @param {string} reason - Rejection reason (required)
+ * @returns {Promise<object>} Updated expense
+ */
+export const rejectExpense = async (id, userId, reason) => {
+  if (!isValidUUID(id)) {
+    throw new ValidationError('Invalid expense ID format');
+  }
+
+  if (!reason || reason.trim().length === 0) {
+    throw new ValidationError('Rejection reason is required');
+  }
+
+  return await prisma.$transaction(async (tx) => {
+    // Get expense with current status and creator info
+    const expense = await tx.expense.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+      },
+      include: {
+        createdBy: {
+          select: { id: true, role: true },
+        },
+      },
+    });
+
+    if (!expense) {
+      throw new NotFoundError('Expense');
+    }
+
+    // Check if rejection is allowed
+    if (expense.status !== 'SUBMITTED') {
+      throw new ValidationError(`Cannot reject expense with status ${expense.status}. Only SUBMITTED expenses can be rejected.`);
+    }
+
+    // Get rejector info
+    const rejector = await tx.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true },
+    });
+
+    if (!rejector) {
+      throw new NotFoundError('User');
+    }
+
+    // ADMIN cannot reject their own expense, SUPER_ADMIN can
+    if (rejector.role === 'ADMIN' && expense.createdById === userId) {
+      throw new ForbiddenError('You cannot reject your own expense. Please ask another admin or super admin.');
+    }
+
+    const fromStatus = expense.status;
+
+    // Update expense to REJECTED
+    const updatedExpense = await tx.expense.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        rejectedAt: new Date(),
+        rejectedById: userId,
+        rejectionReason: reason.trim(),
+      },
+      include: {
+        category: true,
+        createdBy: {
+          select: { id: true, name: true, email: true, role: true },
+        },
+        rejectedBy: {
+          select: { id: true, name: true, email: true, role: true },
+        },
+      },
+    });
+
+    // Create approval event
+    await tx.expenseApprovalEvent.create({
+      data: {
+        expenseId: id,
+        action: 'REJECT',
+        fromStatus,
+        toStatus: 'REJECTED',
+        comment: reason.trim(),
+        performedById: userId,
+      },
+    });
+
+    return updatedExpense;
+  });
+};
+
+/**
+ * Cancel an expense
+ * @param {string} id - Expense ID
+ * @param {string} userId - ID of the user cancelling the expense
+ * @returns {Promise<object>} Updated expense
+ */
+export const cancelExpense = async (id, userId) => {
+  if (!isValidUUID(id)) {
+    throw new ValidationError('Invalid expense ID format');
+  }
+
+  return await prisma.$transaction(async (tx) => {
+    // Get expense with current status
+    const expense = await tx.expense.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+      },
+    });
+
+    if (!expense) {
+      throw new NotFoundError('Expense');
+    }
+
+    // Check if cancellation is allowed
+    if (expense.status !== 'SUBMITTED') {
+      throw new ValidationError(`Cannot cancel expense with status ${expense.status}. Only SUBMITTED expenses can be cancelled.`);
+    }
+
+    // Get user info
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true },
+    });
+
+    if (!user) {
+      throw new NotFoundError('User');
+    }
+
+    // Only creator or SUPER_ADMIN can cancel
+    if (expense.createdById !== userId && user.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenError('Only the expense creator or a super admin can cancel this expense.');
+    }
+
+    const fromStatus = expense.status;
+
+    // Update expense to CANCELLED
+    const updatedExpense = await tx.expense.update({
+      where: { id },
+      data: {
+        status: 'CANCELLED',
+      },
+      include: {
+        category: true,
+        createdBy: {
+          select: { id: true, name: true, email: true, role: true },
+        },
+      },
+    });
+
+    // Create approval event
+    await tx.expenseApprovalEvent.create({
+      data: {
+        expenseId: id,
+        action: 'CANCEL',
+        fromStatus,
+        toStatus: 'CANCELLED',
+        performedById: userId,
+      },
+    });
+
+    return updatedExpense;
+  });
 };

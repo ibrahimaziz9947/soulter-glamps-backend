@@ -35,6 +35,24 @@ enum CommissionStatus {
   PAID
 }
 
+enum ExpenseStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ExpenseApprovalAction {
+  CREATE
+  UPDATE
+  SUBMIT
+  APPROVE
+  REJECT
+  CANCEL
+  DELETE
+}
+
 // ============================================
 // USER MODEL
 // ============================================
@@ -59,8 +77,14 @@ model User {
   commissions      Commission[] // Commissions earned as agent
 
   // Finance relations
-  expensesCreated Expense[] @relation("ExpenseCreator")
-  expensesUpdated Expense[] @relation("ExpenseUpdater")
+  expensesCreated   Expense[] @relation("ExpenseCreator")
+  expensesUpdated   Expense[] @relation("ExpenseUpdater")
+  expensesSubmitted Expense[] @relation("ExpenseSubmittedBy")
+  expensesApproved  Expense[] @relation("ExpenseApprovedBy")
+  expensesRejected  Expense[] @relation("ExpenseRejectedBy")
+
+  // Expense approval events
+  expenseApprovalEvents ExpenseApprovalEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -178,13 +202,14 @@ model ExpenseCategory {
 // ============================================
 // Represents business expenses with audit trail and soft delete support
 model Expense {
-  id          String   @id @default(uuid())
+  id          String        @id @default(uuid())
   title       String
   description String?
   amount      Int // Amount in smallest currency unit (e.g., cents)
-  date        DateTime @default(now())
+  date        DateTime      @default(now())
   vendor      String?
   receiptUrl  String?
+  status      ExpenseStatus @default(DRAFT)
 
   // Relations
   category   ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
@@ -196,14 +221,63 @@ model Expense {
   updatedBy   User?   @relation("ExpenseUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
   updatedById String?
 
+  // Submission workflow
+  submittedAt   DateTime?
+  submittedBy   User?     @relation("ExpenseSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
+  submittedById String?
+
+  // Approval workflow
+  approvedAt      DateTime?
+  approvedBy      User?     @relation("ExpenseApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedById    String?
+  approvalComment String?
+
+  // Rejection workflow
+  rejectedAt      DateTime?
+  rejectedBy      User?     @relation("ExpenseRejectedBy", fields: [rejectedById], references: [id], onDelete: SetNull)
+  rejectedById    String?
+  rejectionReason String?
+
   // Soft delete
   deletedAt DateTime?
+
+  // Approval history
+  approvalEvents ExpenseApprovalEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([categoryId])
   @@index([createdById])
+  @@index([status])
   @@index([date])
   @@index([deletedAt])
+  @@index([submittedAt])
+  @@index([approvedAt])
+}
+
+// ============================================
+// EXPENSE APPROVAL EVENT MODEL
+// ============================================
+// Audit trail for expense approval workflow actions
+model ExpenseApprovalEvent {
+  id         String                @id @default(uuid())
+  action     ExpenseApprovalAction
+  fromStatus ExpenseStatus?
+  toStatus   ExpenseStatus
+  comment    String?
+
+  // Relations
+  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  expenseId String
+
+  performedBy   User   @relation(fields: [performedById], references: [id], onDelete: SetNull)
+  performedById String
+
+  createdAt DateTime @default(now())
+
+  @@index([expenseId])
+  @@index([performedById])
+  @@index([action])
+  @@index([createdAt])
 }

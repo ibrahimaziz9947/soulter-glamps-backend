@@ -19,10 +19,6 @@ router.use('/finance/expenses', expenseRoutes);
 router.post('/finance/payments', authRequired, requireAdmin, financeController.recordPayment);
 router.get('/finance/payments', authRequired, requireAdmin, financeController.getPaymentHistory);
 
-// Expense routes
-router.post('/finance/expenses', authRequired, requireAdmin, financeController.recordExpense);
-router.get('/finance/expenses', authRequired, requireAdmin, financeController.getExpenseHistory);
-
 // Commission routes
 router.post('/finance/commissions', authRequired, requireAdmin, financeController.recordCommission);
 router.get('/finance/commissions', authRequired, requireAdmin, financeController.getCommissionReport);

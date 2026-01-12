@@ -91,3 +91,84 @@ export const deleteExpense = asyncHandler(async (req, res) => {
     message: 'Expense deleted successfully',
   });
 });
+
+/**
+ * Submit expense for approval
+ * @route POST /api/finance/expenses/:id/submit
+ * @access ADMIN, SUPER_ADMIN
+ */
+export const submitExpense = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+  const expense = await expenseService.submitExpense(id, userId);
+
+  return res.status(200).json({
+    success: true,
+    message: 'Expense submitted for approval',
+    data: expense,
+  });
+});
+
+/**
+ * Approve expense
+ * @route POST /api/finance/expenses/:id/approve
+ * @access ADMIN, SUPER_ADMIN
+ */
+export const approveExpense = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+  const { comment } = req.body;
+  
+  const expense = await expenseService.approveExpense(id, userId, comment);
+
+  return res.status(200).json({
+    success: true,
+    message: 'Expense approved successfully',
+    data: expense,
+  });
+});
+
+/**
+ * Reject expense
+ * @route POST /api/finance/expenses/:id/reject
+ * @access ADMIN, SUPER_ADMIN
+ */
+export const rejectExpense = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+  const { reason } = req.body;
+
+  // Validate reason is provided
+  if (!reason || reason.trim().length === 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'Rejection reason is required',
+    });
+  }
+
+  const expense = await expenseService.rejectExpense(id, userId, reason);
+
+  return res.status(200).json({
+    success: true,
+    message: 'Expense rejected',
+    data: expense,
+  });
+});
+
+/**
+ * Cancel expense
+ * @route POST /api/finance/expenses/:id/cancel
+ * @access ADMIN, SUPER_ADMIN
+ */
+export const cancelExpense = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+  
+  const expense = await expenseService.cancelExpense(id, userId);
+
+  return res.status(200).json({
+    success: true,
+    message: 'Expense cancelled',
+    data: expense,
+  });
+});
