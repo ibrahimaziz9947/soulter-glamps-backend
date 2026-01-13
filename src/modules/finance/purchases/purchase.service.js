@@ -171,179 +171,258 @@ export const getPurchaseById = async (id) => {
 
 /**
  * Create a new purchase record
- * @param {object} payload - Purchase data
+ * @param {object} payload - Purchase data (whitelisted fields only)
  * @param {object} actor - User creating the purchase (expects { userId })
  * @returns {Promise<object>} Created purchase with relations
  */
 export const createPurchase = async (payload, actor) => {
-  // Validate actor
-  if (!actor || !actor.userId) {
-    throw new ValidationError('Actor with userId is required');
-  }
-
-  // Validate required fields
-  if (amount === undefined || amount === null) {
-    throw new ValidationError('Amount is required');
-  }
-
-  if (typeof payload.amount !== 'number' || payload.amount < 0) {
-    throw new ValidationError('Amount must be a non-negative number');
-  }
-
-  if (!payload.currency || payload.currency.trim().length === 0) {
-    throw new ValidationError('Currency is required');
-  }
-
-  if (!payload.purchaseDate) {
-    throw new ValidationError('Purchase date is required');
-  }
-
-  if (!payload.vendorName || payload.vendorName.trim().length === 0) {
-    throw new ValidationError('Vendor name is required');
-  }
-
-  // Validate status if provided
-  if (payload.status) {
-    const validStatuses = ['DRAFT', 'CONFIRMED', 'CANCELLED'];
-    if (!validStatuses.includes(payload.status)) {
-      throw new ValidationError(`Status must be one of: ${validStatuses.join(', ')}`);
+  try {
+    // Validate actor
+    if (!actor || !actor.userId) {
+      throw new ValidationError('Actor with userId is required');
     }
-  }
 
-  // Create purchase record
-  const purchase = await prisma.purchase.create({
-    data: {
-      amount: payload.amount,
-      currency: payload.currency.trim().toUpperCase(),
-      purchaseDate: new Date(payload.purchaseDate),
-      vendorName: payload.vendorName.trim(),
-      status: payload.status || 'DRAFT',
-      reference: payload.reference?.trim() || null,
-      notes: payload.notes?.trim() || null,
-      createdById: actor.userId,
-    },
-    include: {
-      createdBy: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
+    // Validate required fields
+    if (payload.amount === undefined || payload.amount === null) {
+      throw new ValidationError('Amount is required');
+    }
+
+    if (typeof payload.amount !== 'number' || payload.amount < 0) {
+      throw new ValidationError('Amount must be a non-negative number');
+    }
+
+    if (!payload.currency || payload.currency.trim().length === 0) {
+      throw new ValidationError('Currency is required');
+    }
+
+    if (!payload.purchaseDate) {
+      throw new ValidationError('Purchase date is required');
+    }
+
+    if (!payload.vendorName || payload.vendorName.trim().length === 0) {
+      throw new ValidationError('Vendor name is required');
+    }
+
+    // Validate status if provided
+    if (payload.status) {
+      const validStatuses = ['DRAFT', 'CONFIRMED', 'CANCELLED'];
+      if (!validStatuses.includes(payload.status)) {
+        throw new ValidationError(`Status must be one of: ${validStatuses.join(', ')}`);
+      }
+    }
+
+    // Ensure purchaseDate is a Date object
+    let purchaseDate;
+    if (payload.purchaseDate instanceof Date) {
+      purchaseDate = payload.purchaseDate;
+    } else {
+      purchaseDate = new Date(payload.purchaseDate);
+      if (isNaN(purchaseDate.getTime())) {
+        throw new ValidationError('Invalid purchase date format');
+      }
+    }
+
+    // Create purchase record with whitelisted fields only
+    const purchase = await prisma.purchase.create({
+      data: {
+        amount: payload.amount,
+        currency: payload.currency.trim().toUpperCase(),
+        purchaseDate: purchaseDate,
+        vendorName: payload.vendorName.trim(),
+        status: payload.status || 'DRAFT',
+        reference: payload.reference?.trim() || null,
+        notes: payload.notes?.trim() || null,
+        createdById: actor.userId,
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
         },
       },
-    },
-  });
+    });
 
-  return purchase;
+    return purchase;
+  } catch (error) {
+    // Log detailed error for debugging
+    console.error('❌ Purchase creation error:', {
+      message: error.message,
+      code: error.code,
+      meta: error.meta,
+      stack: error.stack,
+    });
+
+    // If it's already a ValidationError or NotFoundError, re-throw it
+    if (error instanceof ValidationError || error instanceof NotFoundError) {
+      throw error;
+    }
+
+    // Handle Prisma-specific errors
+    if (error.code === 'P2002') {
+      throw new ValidationError('A purchase with this reference already exists');
+    }
+
+    if (error.code === 'P2003') {
+      throw new ValidationError('Invalid user reference');
+    }
+
+    if (error.code === 'P2025') {
+      throw new NotFoundError('Related record not found');
+    }
+
+    // Generic error
+    throw new ValidationError('Failed to create purchase: ' + error.message);
+  }
 };
 
 /**
  * Update a purchase record
  * @param {string} id - Purchase ID
- * @param {object} payload - Updated purchase data (partial)
+ * @param {object} payload - Updated purchase data (partial, whitelisted fields only)
  * @param {object} actor - User updating the purchase (expects { userId })
  * @returns {Promise<object>} Updated purchase
  */
 export const updatePurchase = async (id, payload, actor) => {
-  if (!isValidUUID(id)) {
-    throw new ValidationError('Invalid purchase ID format');
-  }
+  try {
+    if (!isValidUUID(id)) {
+      throw new ValidationError('Invalid purchase ID format');
+    }
 
-  // Validate actor
-  if (!actor || !actor.userId) {
-    throw new ValidationError('Actor with userId is required');
-  }
+    // Validate actor
+    if (!actor || !actor.userId) {
+      throw new ValidationError('Actor with userId is required');
+    }
 
-  // Check if purchase exists and is not deleted
-  const existingPurchase = await prisma.purchase.findFirst({
-    where: {
+    // Check if purchase exists and is not deleted
+    const existingPurchase = await prisma.purchase.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+      },
+    });
+
+    if (!existingPurchase) {
+      throw new NotFoundError('Purchase');
+    }
+
+    // Build update data
+    const updateData = {
+      updatedById: actor.userId,
+    };
+
+    // Validate and update amount
+    if (payload.amount !== undefined) {
+      if (typeof payload.amount !== 'number' || payload.amount < 0) {
+        throw new ValidationError('Amount must be a non-negative number');
+      }
+      updateData.amount = payload.amount;
+    }
+
+    // Update currency
+    if (payload.currency !== undefined) {
+      if (!payload.currency || payload.currency.trim().length === 0) {
+        throw new ValidationError('Currency cannot be empty');
+      }
+      updateData.currency = payload.currency.trim().toUpperCase();
+    }
+
+    // Update purchaseDate
+    if (payload.purchaseDate !== undefined) {
+      let purchaseDate;
+      if (payload.purchaseDate instanceof Date) {
+        purchaseDate = payload.purchaseDate;
+      } else {
+        purchaseDate = new Date(payload.purchaseDate);
+        if (isNaN(purchaseDate.getTime())) {
+          throw new ValidationError('Invalid purchase date format');
+        }
+      }
+      updateData.purchaseDate = purchaseDate;
+    }
+
+    // Update vendorName
+    if (payload.vendorName !== undefined) {
+      if (!payload.vendorName || payload.vendorName.trim().length === 0) {
+        throw new ValidationError('Vendor name cannot be empty');
+      }
+      updateData.vendorName = payload.vendorName.trim();
+    }
+
+    // Update status
+    if (payload.status !== undefined) {
+      const validStatuses = ['DRAFT', 'CONFIRMED', 'CANCELLED'];
+      if (!validStatuses.includes(payload.status)) {
+        throw new ValidationError(`Status must be one of: ${validStatuses.join(', ')}`);
+      }
+      updateData.status = payload.status;
+    }
+
+    // Update reference
+    if (payload.reference !== undefined) {
+      updateData.reference = payload.reference?.trim() || null;
+    }
+
+    // Update notes
+    if (payload.notes !== undefined) {
+      updateData.notes = payload.notes?.trim() || null;
+    }
+
+    // Update purchase
+    const updatedPurchase = await prisma.purchase.update({
+      where: { id },
+      data: updateData,
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+        updatedBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    return updatedPurchase;
+  } catch (error) {
+    // Log detailed error for debugging
+    console.error('❌ Purchase update error:', {
       id,
-      deletedAt: null,
-    },
-  });
+      message: error.message,
+      code: error.code,
+      meta: error.meta,
+      stack: error.stack,
+    });
 
-  if (!existingPurchase) {
-    throw new NotFoundError('Purchase');
-  }
-
-  // Build update data
-  const updateData = {
-    updatedById: actor.userId,
-  };
-
-  // Validate and update amount
-  if (payload.amount !== undefined) {
-    if (typeof payload.amount !== 'number' || payload.amount < 0) {
-      throw new ValidationError('Amount must be a non-negative number');
+    // If it's already a ValidationError or NotFoundError, re-throw it
+    if (error instanceof ValidationError || error instanceof NotFoundError) {
+      throw error;
     }
-    updateData.amount = payload.amount;
-  }
 
-  // Update currency
-  if (payload.currency !== undefined) {
-    if (!payload.currency || payload.currency.trim().length === 0) {
-      throw new ValidationError('Currency cannot be empty');
+    // Handle Prisma-specific errors
+    if (error.code === 'P2002') {
+      throw new ValidationError('A purchase with this reference already exists');
     }
-    updateData.currency = payload.currency.trim().toUpperCase();
-  }
 
-  // Update purchaseDate
-  if (payload.purchaseDate !== undefined) {
-    updateData.purchaseDate = new Date(payload.purchaseDate);
-  }
-
-  // Update vendorName
-  if (payload.vendorName !== undefined) {
-    if (!payload.vendorName || payload.vendorName.trim().length === 0) {
-      throw new ValidationError('Vendor name cannot be empty');
+    if (error.code === 'P2025') {
+      throw new NotFoundError('Purchase');
     }
-    updateData.vendorName = payload.vendorName.trim();
+
+    // Generic error
+    throw new ValidationError('Failed to update purchase: ' + error.message);
   }
-
-  // Update status
-  if (payload.status !== undefined) {
-    const validStatuses = ['DRAFT', 'CONFIRMED', 'CANCELLED'];
-    if (!validStatuses.includes(payload.status)) {
-      throw new ValidationError(`Status must be one of: ${validStatuses.join(', ')}`);
-    }
-    updateData.status = payload.status;
-  }
-
-  // Update reference
-  if (payload.reference !== undefined) {
-    updateData.reference = payload.reference?.trim() || null;
-  }
-
-  // Update notes
-  if (payload.notes !== undefined) {
-    updateData.notes = payload.notes?.trim() || null;
-  }
-
-  // Update purchase
-  const updatedPurchase = await prisma.purchase.update({
-    where: { id },
-    data: updateData,
-    include: {
-      createdBy: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-        },
-      },
-      updatedBy: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-        },
-      },
-    },
-  });
-
-  return updatedPurchase;
 };
 
 /**

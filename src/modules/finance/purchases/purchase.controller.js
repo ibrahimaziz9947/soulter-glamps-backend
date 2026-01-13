@@ -62,13 +62,27 @@ export const getPurchasesSummary = asyncHandler(async (req, res) => {
  * Create a new purchase record
  * @route POST /api/finance/purchases
  * @access ADMIN, SUPER_ADMIN
+ * 
+ * Sample curl:
+ * curl -X POST http://localhost:5001/api/finance/purchases \
+ *   -H "Authorization: Bearer YOUR_TOKEN" \
+ *   -H "Content-Type: application/json" \
+ *   -d '{
+ *     "amount": 50000,
+ *     "currency": "USD",
+ *     "purchaseDate": "2026-01-13",
+ *     "vendorName": "Acme Corp",
+ *     "status": "DRAFT",
+ *     "reference": "PO-001",
+ *     "notes": "Office supplies"
+ *   }'
  */
 export const createPurchase = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const actor = { userId };
 
-  // Controller-level validation
-  const { amount, currency, purchaseDate, vendorName, status } = req.body;
+  // Whitelist allowed fields only (ignore extra fields like 'category')
+  const { amount, currency, purchaseDate, vendorName, status, reference, notes } = req.body;
 
   // Validate amount
   if (amount === undefined || amount === null) {
@@ -108,11 +122,23 @@ export const createPurchase = asyncHandler(async (req, res) => {
     });
   }
 
-  const parsedDate = new Date(purchaseDate);
-  if (isNaN(parsedDate.getTime())) {
+  // Normalize purchaseDate - handle both "YYYY-MM-DD" and full ISO strings
+  let normalizedDate;
+  try {
+    // If it's just a date string (YYYY-MM-DD), append time to make it a proper DateTime
+    if (typeof purchaseDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(purchaseDate)) {
+      normalizedDate = new Date(`${purchaseDate}T00:00:00.000Z`);
+    } else {
+      normalizedDate = new Date(purchaseDate);
+    }
+
+    if (isNaN(normalizedDate.getTime())) {
+      throw new Error('Invalid date');
+    }
+  } catch (err) {
     return res.status(400).json({
       success: false,
-      error: 'Purchase date must be a valid date',
+      error: 'Purchase date must be a valid date (YYYY-MM-DD or ISO format)',
     });
   }
 
@@ -135,7 +161,18 @@ export const createPurchase = asyncHandler(async (req, res) => {
     }
   }
 
-  const purchase = await purchaseService.createPurchase(req.body, actor);
+  // Build whitelisted payload
+  const whitelistedPayload = {
+    amount,
+    currency,
+    purchaseDate: normalizedDate,
+    vendorName,
+    status,
+    reference,
+    notes,
+  };
+
+  const purchase = await purchaseService.createPurchase(whitelistedPayload, actor);
 
   return res.status(201).json({
     success: true,
@@ -169,8 +206,8 @@ export const updatePurchase = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const actor = { userId };
 
-  // Controller-level validation for provided fields
-  const { amount, currency, purchaseDate, vendorName, status } = req.body;
+  // Whitelist allowed fields only (ignore extra fields like 'category')
+  const { amount, currency, purchaseDate, vendorName, status, reference, notes } = req.body;
 
   // Validate amount if provided
   if (amount !== undefined) {
@@ -199,13 +236,24 @@ export const updatePurchase = asyncHandler(async (req, res) => {
     }
   }
 
-  // Validate purchaseDate if provided
+  // Validate and normalize purchaseDate if provided
+  let normalizedDate;
   if (purchaseDate !== undefined) {
-    const parsedDate = new Date(purchaseDate);
-    if (isNaN(parsedDate.getTime())) {
+    try {
+      // Handle both "YYYY-MM-DD" and full ISO strings
+      if (typeof purchaseDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(purchaseDate)) {
+        normalizedDate = new Date(`${purchaseDate}T00:00:00.000Z`);
+      } else {
+        normalizedDate = new Date(purchaseDate);
+      }
+
+      if (isNaN(normalizedDate.getTime())) {
+        throw new Error('Invalid date');
+      }
+    } catch (err) {
       return res.status(400).json({
         success: false,
-        error: 'Purchase date must be a valid date',
+        error: 'Purchase date must be a valid date (YYYY-MM-DD or ISO format)',
       });
     }
   }
@@ -231,7 +279,22 @@ export const updatePurchase = asyncHandler(async (req, res) => {
     }
   }
 
-  const purchase = await purchaseService.updatePurchase(id, req.body, actor);
+  // Build whitelisted payload
+  const whitelistedPayload = {
+    amount,
+    currency,
+    vendorName,
+    status,
+    reference,
+    notes,
+  };
+
+  // Add normalized date if provided
+  if (normalizedDate !== undefined) {
+    whitelistedPayload.purchaseDate = normalizedDate;
+  }
+
+  const purchase = await purchaseService.updatePurchase(id, whitelistedPayload, actor);
 
   return res.status(200).json({
     success: true,
