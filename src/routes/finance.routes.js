@@ -5,6 +5,7 @@ import * as financeController from '../controllers/finance.controller.js';
 import * as categoryController from '../modules/finance/categories/category.controller.js';
 import expenseRoutes from '../modules/finance/expenses/expense.routes.js';
 import incomeRoutes from '../modules/finance/income/income.routes.js';
+import purchaseRoutes from '../modules/finance/purchases/purchase.routes.js';
 
 const router = express.Router();
 
@@ -18,6 +19,9 @@ router.use('/finance/expenses', expenseRoutes);
 
 // Mount modular income routes
 router.use('/finance/income', incomeRoutes);
+
+// Mount modular purchase routes
+router.use('/finance/purchases', purchaseRoutes);
 
 // Commission routes
 router.post('/finance/commissions', authRequired, requireAdmin, financeController.recordCommission);

@@ -65,6 +65,12 @@ enum IncomeStatus {
   CANCELLED
 }
 
+enum PurchaseStatus {
+  DRAFT
+  CONFIRMED
+  CANCELLED
+}
+
 // ============================================
 // USER MODEL
 // ============================================
@@ -101,6 +107,10 @@ model User {
   // Income relations
   incomesCreated Income[] @relation("IncomeCreator")
   incomesUpdated Income[] @relation("IncomeUpdater")
+
+  // Purchase relations
+  purchasesCreated Purchase[] @relation("PurchaseCreator")
+  purchasesUpdated Purchase[] @relation("PurchaseUpdater")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -333,6 +343,41 @@ model Income {
   @@index([bookingId])
   @@index([dateReceived])
   @@index([source])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([createdById])
+}
+
+// ============================================
+// PURCHASE MODEL
+// ============================================
+// Represents purchases made by the business
+// Tracks vendor purchases and procurement expenses
+model Purchase {
+  id           String         @id @default(uuid())
+  amount       Int // Amount in smallest currency unit (e.g., cents)
+  currency     String         @default("USD")
+  purchaseDate DateTime
+  vendorName   String
+  status       PurchaseStatus @default(DRAFT)
+  reference    String? // External reference (PO number, invoice number, etc.)
+  notes        String?
+
+  // Relations
+  createdBy   User   @relation("PurchaseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String
+
+  updatedBy   User?   @relation("PurchaseUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedById String?
+
+  // Soft delete
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([purchaseDate])
+  @@index([vendorName])
   @@index([status])
   @@index([deletedAt])
   @@index([createdById])
