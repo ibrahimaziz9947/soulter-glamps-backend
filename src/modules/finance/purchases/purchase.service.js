@@ -371,6 +371,64 @@ export const updatePurchase = async (id, payload, actor) => {
       updateData.notes = payload.notes?.trim() || null;
     }
 
+    // Update paymentStatus
+    if (payload.paymentStatus !== undefined) {
+      const validPaymentStatuses = ['UNPAID', 'PARTIAL', 'PAID'];
+      if (!validPaymentStatuses.includes(payload.paymentStatus)) {
+        throw new ValidationError(`Payment status must be one of: ${validPaymentStatuses.join(', ')}`);
+      }
+      updateData.paymentStatus = payload.paymentStatus;
+    }
+
+    // Update paidAmountCents
+    if (payload.paidAmountCents !== undefined) {
+      if (typeof payload.paidAmountCents !== 'number' || payload.paidAmountCents < 0) {
+        throw new ValidationError('Paid amount must be a non-negative number');
+      }
+      // Ensure paid amount doesn't exceed total amount
+      const totalAmount = updateData.amount || existingPurchase.amount;
+      if (payload.paidAmountCents > totalAmount) {
+        throw new ValidationError('Paid amount cannot exceed total purchase amount');
+      }
+      updateData.paidAmountCents = payload.paidAmountCents;
+    }
+
+    // Update dueDate
+    if (payload.dueDate !== undefined) {
+      if (payload.dueDate !== null) {
+        let dueDate;
+        if (payload.dueDate instanceof Date) {
+          dueDate = payload.dueDate;
+        } else {
+          dueDate = new Date(payload.dueDate);
+          if (isNaN(dueDate.getTime())) {
+            throw new ValidationError('Invalid due date format');
+          }
+        }
+        updateData.dueDate = dueDate;
+      } else {
+        updateData.dueDate = null;
+      }
+    }
+
+    // Update paidAt
+    if (payload.paidAt !== undefined) {
+      if (payload.paidAt !== null) {
+        let paidAt;
+        if (payload.paidAt instanceof Date) {
+          paidAt = payload.paidAt;
+        } else {
+          paidAt = new Date(payload.paidAt);
+          if (isNaN(paidAt.getTime())) {
+            throw new ValidationError('Invalid paid date format');
+          }
+        }
+        updateData.paidAt = paidAt;
+      } else {
+        updateData.paidAt = null;
+      }
+    }
+
     // Update purchase
     const updatedPurchase = await prisma.purchase.update({
       where: { id },

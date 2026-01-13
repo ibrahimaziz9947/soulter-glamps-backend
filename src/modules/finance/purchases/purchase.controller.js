@@ -207,7 +207,7 @@ export const updatePurchase = asyncHandler(async (req, res) => {
   const actor = { userId };
 
   // Whitelist allowed fields only (ignore extra fields like 'category')
-  const { amount, currency, purchaseDate, vendorName, status, reference, notes } = req.body;
+  const { amount, currency, purchaseDate, vendorName, status, reference, notes, paymentStatus, paidAmountCents, dueDate, paidAt } = req.body;
 
   // Validate amount if provided
   if (amount !== undefined) {
@@ -287,6 +287,10 @@ export const updatePurchase = asyncHandler(async (req, res) => {
     status,
     reference,
     notes,
+    paymentStatus,
+    paidAmountCents,
+    dueDate,
+    paidAt,
   };
 
   // Add normalized date if provided

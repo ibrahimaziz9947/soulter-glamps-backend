@@ -71,6 +71,12 @@ enum PurchaseStatus {
   CANCELLED
 }
 
+enum PurchasePaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
 // ============================================
 // USER MODEL
 // ============================================
@@ -363,6 +369,12 @@ model Purchase {
   reference    String? // External reference (PO number, invoice number, etc.)
   notes        String?
 
+  // Payment tracking for Payables V1
+  paymentStatus    PurchasePaymentStatus @default(UNPAID)
+  paidAmountCents  Int                   @default(0) // Amount paid so far in cents
+  dueDate          DateTime?
+  paidAt           DateTime?
+
   // Relations
   createdBy   User   @relation("PurchaseCreator", fields: [createdById], references: [id], onDelete: SetNull)
   createdById String
@@ -379,6 +391,7 @@ model Purchase {
   @@index([purchaseDate])
   @@index([vendorName])
   @@index([status])
+  @@index([paymentStatus])
   @@index([deletedAt])
   @@index([createdById])
 }
