@@ -10,10 +10,11 @@ import { ValidationError } from '../../../utils/errors.js';
  * @param {string} filters.to - End date (ISO format)
  * @param {string} filters.currency - Optional currency filter
  * @param {boolean} filters.includeBreakdown - Include detailed breakdown (default: true)
+ * @param {string} filters.expenseMode - Expense filtering mode: 'approvedOnly' (default) or 'includeSubmitted'
  * @returns {Promise<object>} P&L summary with totals and optional breakdown
  */
 export const computeProfitAndLoss = async (filters = {}) => {
-  const { from, to, currency, includeBreakdown = true } = filters;
+  const { from, to, currency, includeBreakdown = true, expenseMode = 'approvedOnly' } = filters;
 
   // TEMP DEBUG: Log incoming filters
   console.log('[P&L DEBUG] Incoming filters:', { from, to, currency, includeBreakdown });
@@ -78,13 +79,19 @@ export const computeProfitAndLoss = async (filters = {}) => {
   // Date field: date (from expense.service.js pattern)
   // Amount field: amount (in cents)
   // Soft delete: deletedAt: null
-  // Status: Include DRAFT, SUBMITTED, APPROVED (exclude REJECTED, CANCELLED)
+  // Status: Determined by expenseMode query parameter
+  //   - approvedOnly (default): Only APPROVED expenses
+  //   - includeSubmitted: SUBMITTED + APPROVED expenses
   // Currency: Expenses DON'T have currency field in schema - ignore currency filter
   // Schema: Expense DOES NOT have currency field
+  const expenseStatusFilter = expenseMode === 'includeSubmitted' 
+    ? ['SUBMITTED', 'APPROVED'] 
+    : ['APPROVED'];
+
   const expenseWhere = {
     AND: [
       { deletedAt: null },
-      { status: { in: ['DRAFT', 'SUBMITTED', 'APPROVED'] } },
+      { status: { in: expenseStatusFilter } },
     ],
   };
 
@@ -173,6 +180,7 @@ export const computeProfitAndLoss = async (filters = {}) => {
       from: from || null,
       to: to || null,
       currency: currency || null,
+      expenseMode: expenseMode,
     },
     summary: {
       totalIncomeCents,

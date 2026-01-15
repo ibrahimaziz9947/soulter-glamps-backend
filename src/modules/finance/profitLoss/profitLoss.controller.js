@@ -31,7 +31,7 @@ const isValidDate = (dateString) => {
  *   -H "Authorization: Bearer YOUR_TOKEN"
  */
 export const getProfitAndLoss = asyncHandler(async (req, res) => {
-  const { from, to, currency, includeBreakdown } = req.query;
+  const { from, to, currency, includeBreakdown, expenseMode } = req.query;
 
   // TEMP LOG: Debug query parameters
   console.log('[P&L] query', req.query);
@@ -71,11 +71,20 @@ export const getProfitAndLoss = asyncHandler(async (req, res) => {
     });
   }
 
+  // Validate expenseMode if provided
+  if (expenseMode && !['approvedOnly', 'includeSubmitted'].includes(expenseMode)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid expenseMode. Must be "approvedOnly" or "includeSubmitted"',
+    });
+  }
+
   const filters = {
     from,
     to,
     currency: currency?.trim().toUpperCase(),
     includeBreakdown: includeBreakdown === undefined ? true : includeBreakdown === 'true',
+    expenseMode: expenseMode || 'approvedOnly',
   };
 
   const profitAndLoss = await profitLossService.computeProfitAndLoss(filters);
@@ -113,7 +122,7 @@ export const getProfitAndLoss = asyncHandler(async (req, res) => {
  *   -H "Authorization: Bearer YOUR_TOKEN"
  */
 export const getProfitAndLossSummary = asyncHandler(async (req, res) => {
-  const { from, to, currency } = req.query;
+  const { from, to, currency, expenseMode } = req.query;
 
   // TEMP LOG: Debug query parameters
   console.log('[P&L Summary] query', req.query);
@@ -153,11 +162,20 @@ export const getProfitAndLossSummary = asyncHandler(async (req, res) => {
     });
   }
 
+  // Validate expenseMode if provided
+  if (expenseMode && !['approvedOnly', 'includeSubmitted'].includes(expenseMode)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid expenseMode. Must be "approvedOnly" or "includeSubmitted"',
+    });
+  }
+
   const filters = {
     from,
     to,
     currency: currency?.trim().toUpperCase(),
     includeBreakdown: false, // Summary endpoint never includes breakdown
+    expenseMode: expenseMode || 'approvedOnly',
   };
 
   const profitAndLoss = await profitLossService.computeProfitAndLoss(filters);
