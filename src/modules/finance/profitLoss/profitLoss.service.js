@@ -35,23 +35,26 @@ export const computeProfitAndLoss = async (filters = {}) => {
   // Soft delete: deletedAt: null
   // Status: Include DRAFT and CONFIRMED (exclude CANCELLED)
   // Currency: Include matching currency OR null (flexible matching)
+  // Schema: Income HAS currency field
   const incomeWhere = {
-    deletedAt: null,
-    status: {
-      in: ['DRAFT', 'CONFIRMED'], // Exclude CANCELLED
-    },
+    AND: [
+      { deletedAt: null },
+      { status: { in: ['DRAFT', 'CONFIRMED'] } },
+    ],
   };
 
   if (Object.keys(dateRange).length > 0) {
-    incomeWhere.dateReceived = dateRange;
+    incomeWhere.AND.push({ dateReceived: dateRange });
   }
 
-  // FIX: Currency filter with OR logic to include null values
+  // FIX: Currency filter with proper AND/OR structure for Prisma
   if (currency) {
-    incomeWhere.OR = [
-      { currency: currency },
-      { currency: null },
-    ];
+    incomeWhere.AND.push({
+      OR: [
+        { currency: currency },
+        { currency: null },
+      ],
+    });
   }
 
   // TEMP DEBUG: Log Income where clause
@@ -76,19 +79,20 @@ export const computeProfitAndLoss = async (filters = {}) => {
   // Amount field: amount (in cents)
   // Soft delete: deletedAt: null
   // Status: Include DRAFT, SUBMITTED, APPROVED (exclude REJECTED, CANCELLED)
-  // Currency: Expenses don't have currency field in schema
+  // Currency: Expenses DON'T have currency field in schema - ignore currency filter
+  // Schema: Expense DOES NOT have currency field
   const expenseWhere = {
-    deletedAt: null,
-    status: {
-      in: ['DRAFT', 'SUBMITTED', 'APPROVED'], // Exclude REJECTED, CANCELLED
-    },
+    AND: [
+      { deletedAt: null },
+      { status: { in: ['DRAFT', 'SUBMITTED', 'APPROVED'] } },
+    ],
   };
 
   if (Object.keys(dateRange).length > 0) {
-    expenseWhere.date = dateRange;
+    expenseWhere.AND.push({ date: dateRange });
   }
 
-  // Note: Expenses don't have currency field in schema, they're assumed to be in base currency
+  // NOTE: Expenses don't have currency field - no currency filtering applied
 
   // TEMP DEBUG: Log Expense where clause
   console.log('[P&L DEBUG] Expense where:', JSON.stringify(expenseWhere, null, 2));
@@ -113,23 +117,26 @@ export const computeProfitAndLoss = async (filters = {}) => {
   // Soft delete: deletedAt: null
   // Status: Include DRAFT and CONFIRMED (exclude CANCELLED)
   // Currency: Include matching currency OR null (flexible matching)
+  // Schema: Purchase HAS currency field
   const purchaseWhere = {
-    deletedAt: null,
-    status: {
-      in: ['DRAFT', 'CONFIRMED'], // Exclude CANCELLED
-    },
+    AND: [
+      { deletedAt: null },
+      { status: { in: ['DRAFT', 'CONFIRMED'] } },
+    ],
   };
 
   if (Object.keys(dateRange).length > 0) {
-    purchaseWhere.purchaseDate = dateRange;
+    purchaseWhere.AND.push({ purchaseDate: dateRange });
   }
 
-  // FIX: Currency filter with OR logic to include null values
+  // FIX: Currency filter with proper AND/OR structure for Prisma
   if (currency) {
-    purchaseWhere.OR = [
-      { currency: currency },
-      { currency: null },
-    ];
+    purchaseWhere.AND.push({
+      OR: [
+        { currency: currency },
+        { currency: null },
+      ],
+    });
   }
 
   // TEMP DEBUG: Log Purchase where clause

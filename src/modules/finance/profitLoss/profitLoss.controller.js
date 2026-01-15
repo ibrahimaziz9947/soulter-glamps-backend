@@ -33,6 +33,9 @@ const isValidDate = (dateString) => {
 export const getProfitAndLoss = asyncHandler(async (req, res) => {
   const { from, to, currency, includeBreakdown } = req.query;
 
+  // TEMP LOG: Debug query parameters
+  console.log('[P&L] query', req.query);
+
   // Validate date parameters
   if (from && !isValidDate(from)) {
     return res.status(400).json({
@@ -77,6 +80,13 @@ export const getProfitAndLoss = asyncHandler(async (req, res) => {
 
   const profitAndLoss = await profitLossService.computeProfitAndLoss(filters);
 
+  // TEMP LOG: Debug counts
+  console.log('[P&L] counts', {
+    incomeCount: profitAndLoss.debugCounts?.income || 0,
+    expenseCount: profitAndLoss.debugCounts?.expenses || 0,
+    purchaseCount: profitAndLoss.debugCounts?.purchases || 0,
+  });
+
   return res.status(200).json({
     success: true,
     data: profitAndLoss,
@@ -104,6 +114,9 @@ export const getProfitAndLoss = asyncHandler(async (req, res) => {
  */
 export const getProfitAndLossSummary = asyncHandler(async (req, res) => {
   const { from, to, currency } = req.query;
+
+  // TEMP LOG: Debug query parameters
+  console.log('[P&L Summary] query', req.query);
 
   // Validate date parameters
   if (from && !isValidDate(from)) {
@@ -148,6 +161,13 @@ export const getProfitAndLossSummary = asyncHandler(async (req, res) => {
   };
 
   const profitAndLoss = await profitLossService.computeProfitAndLoss(filters);
+
+  // TEMP LOG: Debug counts
+  console.log('[P&L Summary] counts', {
+    incomeCount: profitAndLoss.debugCounts?.income || 0,
+    expenseCount: profitAndLoss.debugCounts?.expenses || 0,
+    purchaseCount: profitAndLoss.debugCounts?.purchases || 0,
+  });
 
   // Return only filters and summary (no breakdown)
   return res.status(200).json({
