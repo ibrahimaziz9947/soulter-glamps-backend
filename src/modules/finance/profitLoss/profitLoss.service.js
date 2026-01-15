@@ -88,6 +88,16 @@ export const computeProfitAndLoss = async (filters = {}) => {
     ? ['SUBMITTED', 'APPROVED'] 
     : ['APPROVED'];
 
+  // STEP A: Add targeted debugging
+  console.log('[P&L DEBUG] expenseMode:', expenseMode);
+  console.log('[P&L DEBUG] expenseStatusFilter:', expenseStatusFilter);
+
+  // Base where clause (only soft delete)
+  const baseExpenseWhere = {
+    deletedAt: null,
+  };
+
+  // Full where clause (what P&L actually uses)
   const expenseWhere = {
     AND: [
       { deletedAt: null },
@@ -101,8 +111,35 @@ export const computeProfitAndLoss = async (filters = {}) => {
 
   // NOTE: Expenses don't have currency field - no currency filtering applied
 
-  // TEMP DEBUG: Log Expense where clause
-  console.log('[P&L DEBUG] Expense where:', JSON.stringify(expenseWhere, null, 2));
+  // TEMP DEBUG: Log where clauses
+  console.log('[P&L DEBUG] baseExpenseWhere:', JSON.stringify(baseExpenseWhere, null, 2));
+  console.log('[P&L DEBUG] expenseWhere (filtered):', JSON.stringify(expenseWhere, null, 2));
+
+  // Run diagnostic counts
+  const allExpensesCount = await prisma.expense.count({ where: baseExpenseWhere });
+  const matchedExpensesCount = await prisma.expense.count({ where: expenseWhere });
+
+  console.log('[P&L DEBUG] allExpensesCount (not deleted):', allExpensesCount);
+  console.log('[P&L DEBUG] matchedExpensesCount (with filters):', matchedExpensesCount);
+
+  // If no matches, fetch sample expenses to see their actual data
+  if (matchedExpensesCount === 0 && allExpensesCount > 0) {
+    const sampleExpenses = await prisma.expense.findMany({
+      where: baseExpenseWhere,
+      take: 5,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        status: true,
+        amount: true,
+        date: true,
+        createdAt: true,
+        deletedAt: true,
+        title: true,
+      },
+    });
+    console.log('[P&L DEBUG] Sample expenses (latest 5):', JSON.stringify(sampleExpenses, null, 2));
+  }
 
   const expenseAggregation = await prisma.expense.aggregate({
     where: expenseWhere,
