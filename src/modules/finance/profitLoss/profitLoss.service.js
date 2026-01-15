@@ -15,6 +15,9 @@ import { ValidationError } from '../../../utils/errors.js';
 export const computeProfitAndLoss = async (filters = {}) => {
   const { from, to, currency, includeBreakdown = true } = filters;
 
+  // TEMP DEBUG: Log incoming filters
+  console.log('[P&L DEBUG] Incoming filters:', { from, to, currency, includeBreakdown });
+
   // Build date range filters
   const dateRange = {};
   if (from) {
@@ -30,17 +33,29 @@ export const computeProfitAndLoss = async (filters = {}) => {
   // Date field: dateReceived (from income.service.js pattern)
   // Amount field: amount (in cents)
   // Soft delete: deletedAt: null
+  // Status: Include DRAFT and CONFIRMED (exclude CANCELLED)
+  // Currency: Include matching currency OR null (flexible matching)
   const incomeWhere = {
     deletedAt: null,
+    status: {
+      in: ['DRAFT', 'CONFIRMED'], // Exclude CANCELLED
+    },
   };
 
   if (Object.keys(dateRange).length > 0) {
     incomeWhere.dateReceived = dateRange;
   }
 
+  // FIX: Currency filter with OR logic to include null values
   if (currency) {
-    incomeWhere.currency = currency;
+    incomeWhere.OR = [
+      { currency: currency },
+      { currency: null },
+    ];
   }
+
+  // TEMP DEBUG: Log Income where clause
+  console.log('[P&L DEBUG] Income where:', JSON.stringify(incomeWhere, null, 2));
 
   const incomeAggregation = await prisma.income.aggregate({
     where: incomeWhere,
@@ -51,14 +66,22 @@ export const computeProfitAndLoss = async (filters = {}) => {
   const totalIncomeCents = incomeAggregation._sum.amount || 0;
   const incomeCount = incomeAggregation._count.id || 0;
 
+  // TEMP DEBUG: Log Income results
+  console.log('[P&L DEBUG] Income results:', { incomeCount, totalIncomeCents });
+
   // ============================================
   // EXPENSES: Compute total expenses
   // ============================================
   // Date field: date (from expense.service.js pattern)
   // Amount field: amount (in cents)
   // Soft delete: deletedAt: null
+  // Status: Include DRAFT, SUBMITTED, APPROVED (exclude REJECTED, CANCELLED)
+  // Currency: Expenses don't have currency field in schema
   const expenseWhere = {
     deletedAt: null,
+    status: {
+      in: ['DRAFT', 'SUBMITTED', 'APPROVED'], // Exclude REJECTED, CANCELLED
+    },
   };
 
   if (Object.keys(dateRange).length > 0) {
@@ -66,6 +89,9 @@ export const computeProfitAndLoss = async (filters = {}) => {
   }
 
   // Note: Expenses don't have currency field in schema, they're assumed to be in base currency
+
+  // TEMP DEBUG: Log Expense where clause
+  console.log('[P&L DEBUG] Expense where:', JSON.stringify(expenseWhere, null, 2));
 
   const expenseAggregation = await prisma.expense.aggregate({
     where: expenseWhere,
@@ -76,23 +102,38 @@ export const computeProfitAndLoss = async (filters = {}) => {
   const totalExpensesCents = expenseAggregation._sum.amount || 0;
   const expenseCount = expenseAggregation._count.id || 0;
 
+  // TEMP DEBUG: Log Expense results
+  console.log('[P&L DEBUG] Expense results:', { expenseCount, totalExpensesCents });
+
   // ============================================
   // PURCHASES: Compute total purchases (payables)
   // ============================================
   // Date field: purchaseDate (from purchase.service.js pattern)
   // Amount field: amount (in cents)
   // Soft delete: deletedAt: null
+  // Status: Include DRAFT and CONFIRMED (exclude CANCELLED)
+  // Currency: Include matching currency OR null (flexible matching)
   const purchaseWhere = {
     deletedAt: null,
+    status: {
+      in: ['DRAFT', 'CONFIRMED'], // Exclude CANCELLED
+    },
   };
 
   if (Object.keys(dateRange).length > 0) {
     purchaseWhere.purchaseDate = dateRange;
   }
 
+  // FIX: Currency filter with OR logic to include null values
   if (currency) {
-    purchaseWhere.currency = currency;
+    purchaseWhere.OR = [
+      { currency: currency },
+      { currency: null },
+    ];
   }
+
+  // TEMP DEBUG: Log Purchase where clause
+  console.log('[P&L DEBUG] Purchase where:', JSON.stringify(purchaseWhere, null, 2));
 
   const purchaseAggregation = await prisma.purchase.aggregate({
     where: purchaseWhere,
@@ -103,10 +144,21 @@ export const computeProfitAndLoss = async (filters = {}) => {
   const totalPurchasesCents = purchaseAggregation._sum.amount || 0;
   const purchaseCount = purchaseAggregation._count.id || 0;
 
+  // TEMP DEBUG: Log Purchase results
+  console.log('[P&L DEBUG] Purchase results:', { purchaseCount, totalPurchasesCents });
+
   // ============================================
   // NET PROFIT: Income - Expenses - Purchases
   // ============================================
   const netProfitCents = totalIncomeCents - totalExpensesCents - totalPurchasesCents;
+
+  // TEMP DEBUG: Log final calculation
+  console.log('[P&L DEBUG] Final calculation:', {
+    totalIncomeCents,
+    totalExpensesCents,
+    totalPurchasesCents,
+    netProfitCents,
+  });
 
   // Build base response
   const result = {
@@ -121,13 +173,19 @@ export const computeProfitAndLoss = async (filters = {}) => {
       totalPurchasesCents,
       netProfitCents,
     },
+    // TEMP DEBUG: Add debug counts for verification
+    debugCounts: {
+      income: incomeCount,
+      expenses: expenseCount,
+      purchases: purchaseCount,
+    },
   };
 
   // ============================================
   // BREAKDOWN: Detailed groupings (optional)
   // ============================================
   if (includeBreakdown) {
-    // Income by source
+    // Income by source (use same where clause)
     const incomeBySourceRaw = await prisma.income.groupBy({
       by: ['source'],
       where: incomeWhere,
@@ -141,7 +199,7 @@ export const computeProfitAndLoss = async (filters = {}) => {
       count: item._count.id,
     }));
 
-    // Expenses by category
+    // Expenses by category (use same where clause)
     // Need to group by categoryId and then join with ExpenseCategory to get names
     const expensesByCategoryRaw = await prisma.expense.groupBy({
       by: ['categoryId'],
@@ -177,7 +235,7 @@ export const computeProfitAndLoss = async (filters = {}) => {
       count: item._count.id,
     }));
 
-    // Purchases by vendor
+    // Purchases by vendor (use same where clause)
     const purchasesByVendorRaw = await prisma.purchase.groupBy({
       by: ['vendorName'],
       where: purchaseWhere,
@@ -197,6 +255,16 @@ export const computeProfitAndLoss = async (filters = {}) => {
       purchasesByVendor,
     };
   }
+
+  // TEMP DEBUG: Log final result summary
+  console.log('[P&L DEBUG] Returning result with counts:', {
+    incomeCount,
+    expenseCount,
+    purchaseCount,
+    totalIncomeCents,
+    totalExpensesCents,
+    totalPurchasesCents,
+  });
 
   return result;
 };
