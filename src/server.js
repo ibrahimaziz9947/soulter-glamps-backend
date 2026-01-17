@@ -10,6 +10,7 @@ import agentRoutes from './routes/agent.routes.js';
 import glampRoutes from './routes/glamp.routes.js';
 import dbViewerRoutes from './routes/db-viewer.routes.js';
 import adminRoutes from './routes/admin.routes.js';
+import superAdminRoutes from './routes/super-admin.routes.js';
 import seedRoutes from './routes/seed.routes.js';
 import financeRoutes from './routes/finance.routes.js';
 import { AppError } from './utils/errors.js';
@@ -211,6 +212,7 @@ app.use('/api/agent', agentRoutes);
 app.use('/api/glamps', glampRoutes);
 app.use('/api/db', dbViewerRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/seed', seedRoutes);
 app.use('/api/agent/bookings', agentBookingsRoutes);
 app.use('/api', financeRoutes); // Finance routes (includes /finance/expenses)
