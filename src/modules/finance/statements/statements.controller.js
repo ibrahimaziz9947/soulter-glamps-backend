@@ -44,7 +44,9 @@ export const getStatements = asyncHandler(async (req, res) => {
     search,
     page, 
     pageSize, 
-    sort 
+    sort,
+    sortBy,      // Frontend sends sortBy
+    sortOrder    // Frontend sends sortOrder
   } = req.query;
 
   // ============================================
@@ -57,9 +59,15 @@ export const getStatements = asyncHandler(async (req, res) => {
   if (expenseMode === '') expenseMode = undefined;
   if (search === '') search = undefined;
 
+  // Handle both sort and sortBy/sortOrder params from frontend
+  // Frontend sends: sortBy=date&sortOrder=desc
+  // Legacy: sort=desc
+  const finalSortBy = sortBy || 'date';
+  const finalSortOrder = sortOrder || sort || 'desc';
+
   // TEMP LOG: Debug query parameters
   console.log('[Statements] query', req.query);
-  console.log('[Statements] normalized', { from, to, currency, expenseMode, search });
+  console.log('[Statements] normalized', { from, to, currency, expenseMode, search, sortBy: finalSortBy, sortOrder: finalSortOrder });
 
   // Validate date parameters
   if (from && !isValidDate(from)) {
@@ -107,11 +115,20 @@ export const getStatements = asyncHandler(async (req, res) => {
     });
   }
 
-  // Validate sort if provided
-  if (sort && !['asc', 'desc'].includes(sort)) {
+  // Validate sortBy if provided (allowlist for SQL safety)
+  const allowedSortBy = ['date', 'createdAt', 'amountCents'];
+  if (finalSortBy && !allowedSortBy.includes(finalSortBy)) {
     return res.status(400).json({
       success: false,
-      error: 'Invalid sort. Must be "asc" or "desc"',
+      error: `Invalid sortBy. Must be one of: ${allowedSortBy.join(', ')}`,
+    });
+  }
+
+  // Validate sortOrder if provided
+  if (finalSortOrder && !['asc', 'desc'].includes(finalSortOrder)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid sortOrder. Must be "asc" or "desc"',
     });
   }
 
@@ -157,21 +174,32 @@ export const getStatements = asyncHandler(async (req, res) => {
     search: search?.trim(),
     page: pageNum,
     pageSize: pageSizeNum,
-    sort: sort || 'desc',
+    sortBy: finalSortBy,
+    sortOrder: finalSortOrder,
   };
 
-  const result = await statementsService.getStatements(filters);
+  try {
+    const result = await statementsService.getStatements(filters);
 
-  // TEMP LOG: Debug result
-  console.log('[Statements] result summary', {
-    itemCount: result.items.length,
-    totalItems: result.pagination.totalItems,
-    page: result.pagination.page,
-    totals: result.totals,
-  });
+    // TEMP LOG: Debug result
+    console.log('[Statements] result summary', {
+      itemCount: result.items.length,
+      totalItems: result.pagination.totalItems,
+      page: result.pagination.page,
+      totals: result.totals,
+    });
 
-  return res.status(200).json({
-    success: true,
-    data: result,
-  });
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    // Enhanced error logging for production debugging
+    console.error('[STATEMENTS_ERROR]', error);
+    console.error('[STATEMENTS_ERROR] Stack:', error.stack);
+    console.error('[STATEMENTS_ERROR] Filters:', filters);
+    
+    // Re-throw to let asyncHandler deal with it
+    throw error;
+  }
 });

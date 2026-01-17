@@ -6,11 +6,13 @@ The Financial Statements API provides a unified ledger view of all financial tra
 **Note**: There is no separate Payment table in this system. Payments are tracked directly on Purchase records via fields like `paidAmountCents`, `paidAt`, and `paymentStatus`.
 
 ## Implementation
-- Uses Prisma `$queryRawUnsafe` with **parameter binding** to prevent SQL injection
-- Single UNION ALL query combines all transaction types
-- Efficient server-side pagination with LIMIT/OFFSET
+- **v2 - Prisma ORM**: Uses `prisma.findMany()` for reliable queries (replaced raw SQL)
+- Fetches records separately per model (Income, Expense, Purchase)
+- Normalizes all records to unified LedgerEntry format in Node.js
+- Client-side sorting and pagination after normalization
 - Separate count queries for debug metadata
 - All amounts normalized: Income = positive, Expenses/Purchases = negative
+- **More robust** than raw SQL - no table/column name mismatches
 
 ## Endpoint
 
@@ -36,7 +38,9 @@ GET /api/finance/statements
 | `search` | string | - | Search in title, counterparty, and category fields |
 | `page` | integer | `1` | Page number (minimum: 1) |
 | `pageSize` | integer | `25` | Items per page (1-100) |
-| `sort` | enum | `desc` | Sort by date: `asc` or `desc` |
+| `sortBy` | enum | `date` | Sort field: `date`, `createdAt`, or `amountCents` |
+| `sortOrder` | enum | `desc` | Sort order: `asc` or `desc` |
+| `sort` | enum | `desc` | Legacy: Sort order (deprecated, use `sortOrder`) |
 
 ## Response Format
 
@@ -301,7 +305,7 @@ curl -X GET "http://localhost:5001/api/finance/statements?includePurchases=false
       },
       "serverTime": "2026-01-17T15:30:00.000Z",
       "endpoint": "GET /api/finance/statements",
-      "version": "v1-sql-union"
+      "version": "v2-prisma-orm"
     }
   }
 }
@@ -399,26 +403,27 @@ curl -X GET "http://localhost:5001/api/finance/statements?includePurchases=false
 
 ## Implementation Notes
 
-### SQL UNION ALL Performance
-The API uses a single SQL query combining all transaction types:
-```sql
-WITH combined AS (
-  -- Income SELECT
-  UNION ALL
-  -- Expense SELECT  
-  UNION ALL
-  -- Purchase SELECT (if includePurchases=true)
-)
-SELECT * FROM combined
-ORDER BY date DESC, createdAt DESC
-LIMIT $1 OFFSET $2
+### Prisma ORM Approach (v2)
+The API uses Prisma ORM for reliable queries:
+```javascript
+// Fetch separately per model
+const incomeRecords = await prisma.income.findMany({ where, select });
+const expenseRecords = await prisma.expense.findMany({ where, select });
+const purchaseRecords = await prisma.purchase.findMany({ where, select });
+
+// Normalize to unified format
+const ledgerEntries = [...normalizeIncome(), ...normalizeExpense(), ...normalizePurchase()];
+
+// Sort and paginate in Node.js
+ledgerEntries.sort((a, b) => /* sortBy/sortOrder */);
+const paginatedItems = ledgerEntries.slice(startIndex, endIndex);
 ```
 
 This approach provides:
-- **Better performance** than multiple separate queries
-- **Consistent sorting** across all transaction types
-- **Efficient pagination** at the database level
-- **Type safety** via parameterized queries
+- **More reliable** - no raw SQL table/column name issues
+- **Easier to maintain** - type-safe Prisma queries
+- **Production proven** - matches other finance endpoints
+- **Flexible sorting** - supports multiple sort fields
 
 ### Empty String Handling
 The API automatically normalizes empty strings (`''`) in query parameters to `undefined`. This prevents issues where frontend applications might send empty strings that could cause unintended filtering behavior.
