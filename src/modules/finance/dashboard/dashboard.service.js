@@ -82,11 +82,11 @@ export const getDashboardData = async (filters = {}) => {
 
   console.log('[Dashboard Service] Statements filters:', statementsFilters);
 
-  console.log('[Dashboard Service] Statements filters:', statementsFilters);
-
   // ============================================
   // Build where clauses for payables (REUSE same patterns as payables service)
   // ============================================
+  // NOTE: Purchase model has: amount, paidAmountCents, paymentStatus
+  // Outstanding = amount - paidAmountCents (we'll calculate this manually)
   const payablesBaseWhere = {
     deletedAt: null,
     status: { in: ['DRAFT', 'CONFIRMED'] }, // Exclude CANCELLED
@@ -105,30 +105,41 @@ export const getDashboardData = async (filters = {}) => {
     ];
   }
 
+  // Overdue: has dueDate AND dueDate < now
   const overdueWhere = {
     ...payablesBaseWhere,
-    dueDate: { lt: now },
+    dueDate: {
+      not: null,
+      lt: now,
+    },
   };
 
   // ============================================
   // PARALLEL FETCH: Profit & Loss + Payables + Statements (Full Dataset for Cash Flow)
   // ============================================
-  const [profitLossData, payablesAggregation, overdueAggregation, statementsFullData] = await Promise.all([
+  const [profitLossData, pendingPayables, overduePayables, statementsFullData] = await Promise.all([
     // 1) Profit & Loss KPIs - EXACT parameters from profitLossFilters
     computeProfitAndLoss(profitLossFilters),
 
-    // 2) Pending payables aggregation
-    prisma.purchase.aggregate({
+    // 2) Pending payables - fetch purchases with UNPAID/PARTIAL status
+    // We need to calculate outstanding = amount - paidAmountCents manually
+    prisma.purchase.findMany({
       where: payablesBaseWhere,
-      _sum: { outstandingAmountCents: true },
-      _count: { id: true },
+      select: {
+        id: true,
+        amount: true,
+        paidAmountCents: true,
+      },
     }),
 
-    // 3) Overdue payables aggregation
-    prisma.purchase.aggregate({
+    // 3) Overdue payables - fetch purchases that are overdue
+    prisma.purchase.findMany({
       where: overdueWhere,
-      _sum: { outstandingAmountCents: true },
-      _count: { id: true },
+      select: {
+        id: true,
+        amount: true,
+        paidAmountCents: true,
+      },
     }),
 
     // 4) Full statements data - EXACT parameters from statementsFilters
@@ -151,14 +162,24 @@ export const getDashboardData = async (filters = {}) => {
   });
 
   // ============================================
-  // EXTRACT PAYABLES KPIS (separate from P&L)
+  // CALCULATE PAYABLES KPIS (separate from P&L)
   // ============================================
-  const pendingPayablesCents = payablesAggregation._sum.outstandingAmountCents || 0;
-  const overduePayablesCents = overdueAggregation._sum.outstandingAmountCents || 0;
+  // Outstanding amount = amount - paidAmountCents
+  const pendingPayablesCents = pendingPayables.reduce((sum, purchase) => {
+    const outstanding = purchase.amount - (purchase.paidAmountCents || 0);
+    return sum + outstanding;
+  }, 0);
+
+  const overduePayablesCents = overduePayables.reduce((sum, purchase) => {
+    const outstanding = purchase.amount - (purchase.paidAmountCents || 0);
+    return sum + outstanding;
+  }, 0);
 
   console.log('[Dashboard Service] Payables KPIs:', {
     pendingPayablesCents,
     overduePayablesCents,
+    pendingCount: pendingPayables.length,
+    overdueCount: overduePayables.length,
   });
 
   // ============================================

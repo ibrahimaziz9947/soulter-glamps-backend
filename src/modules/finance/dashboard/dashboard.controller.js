@@ -209,20 +209,19 @@ const parseAndValidateDate = (dateString, fieldName) => {
  * - Transactions match exactly what /api/finance/statements returns
  */
 export const getDashboard = asyncHandler(async (req, res) => {
-  let { from, to, currency, limit } = req.query;
+  try {
+    let { from, to, currency, limit } = req.query;
 
-  // ============================================
-  // FIX: Normalize empty strings to undefined
-  // Empty strings from frontend can cause query issues
-  // ============================================
-  if (from === '') from = undefined;
-  if (to === '') to = undefined;
-  if (currency === '') currency = undefined;
-  if (limit === '') limit = undefined;
+    // ============================================
+    // FIX: Normalize empty strings to undefined
+    // Empty strings from frontend can cause query issues
+    // ============================================
+    if (from === '') from = undefined;
+    if (to === '') to = undefined;
+    if (currency === '') currency = undefined;
+    if (limit === '') limit = undefined;
 
-  // TEMP LOG: Debug query parameters
-  console.log('[Dashboard] query', req.query);
-  console.log('[Dashboard] normalized', { from, to, currency, limit });
+    console.log('[Dashboard] Query params:', { from, to, currency, limit });
 
   // ============================================
   // PARSE AND VALIDATE DATE PARAMETERS
@@ -252,23 +251,29 @@ export const getDashboard = asyncHandler(async (req, res) => {
   }
 
   // Validate currency format if provided
-  if (currency && (typeof currency !== 'string' || currency.trim().length !== 3)) {
-    return res.status(400).json({
-      success: false,
-      message: 'Currency must be a 3-character code (e.g., USD, EUR)',
-    });
+  if (currency) {
+    if (typeof currency !== 'string' || currency.trim().length !== 3) {
+      return res.status(400).json({
+        success: false,
+        message: 'Currency must be a 3-character code (e.g., USD, EUR)',
+      });
+    }
   }
 
   // Normalize currency to uppercase (matches profit-loss and statements behavior)
-  const normalizedCurrency = currency ? currency.trim().toUpperCase() : undefined;
+  const normalizedCurrency = currency ? String(currency).trim().toUpperCase() : undefined;
 
-  // Validate limit parameter
-  const limitNum = limit ? parseInt(limit, 10) : 10;
-  if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
-    return res.status(400).json({
-      success: false,
-      message: 'Limit must be a number between 1 and 100',
-    });
+  // Validate limit parameter - safely parse string to integer
+  let limitNum = 10; // Default
+  if (limit !== undefined) {
+    const parsed = Number.parseInt(String(limit), 10);
+    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Limit must be a number between 1 and 100',
+      });
+    }
+    limitNum = parsed;
   }
 
   // Get dashboard data from service
@@ -280,8 +285,13 @@ export const getDashboard = asyncHandler(async (req, res) => {
     limit: limitNum,
   });
 
-  return res.status(200).json({
-    success: true,
-    data: dashboardData,
-  });
+    return res.status(200).json({
+      success: true,
+      data: dashboardData,
+    });
+  } catch (error) {
+    console.error('[Dashboard] Error:', error.message);
+    console.error('[Dashboard] Stack:', error.stack);
+    throw error; // Let asyncHandler handle it
+  }
 });
