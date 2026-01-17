@@ -17,7 +17,23 @@ export const computeProfitAndLoss = async (filters = {}) => {
   const { from, to, currency, includeBreakdown = true, expenseMode = 'approvedOnly' } = filters;
 
   // TEMP DEBUG: Log incoming filters
-  console.log('[P&L DEBUG] Incoming filters:', { from, to, currency, includeBreakdown });
+  console.log('[P&L DEBUG] Incoming filters:', { from, to, currency, includeBreakdown, expenseMode });
+
+  // ============================================
+  // DEBUG: Collect expense status counts for debugging
+  // ============================================
+  const allExpensesByStatus = await prisma.expense.groupBy({
+    by: ['status'],
+    where: { deletedAt: null },
+    _count: { id: true },
+  });
+
+  const debugExpenseStatusCounts = allExpensesByStatus.reduce((acc, item) => {
+    acc[item.status] = item._count.id;
+    return acc;
+  }, {});
+
+  console.log('[P&L DEBUG] debugExpenseStatusCounts:', debugExpenseStatusCounts);
 
   // Build date range filters
   const dateRange = {};
@@ -211,7 +227,7 @@ export const computeProfitAndLoss = async (filters = {}) => {
     netProfitCents,
   });
 
-  // Build base response
+  // Build base response with debug metadata
   const result = {
     filters: {
       from: from || null,
@@ -230,6 +246,22 @@ export const computeProfitAndLoss = async (filters = {}) => {
       income: incomeCount,
       expenses: expenseCount,
       purchases: purchaseCount,
+    },
+    // DEBUG METADATA: Echo received filters and status counts
+    meta: {
+      profitLossVersion: 'debug-v2',
+      receivedQuery: {
+        from: filters.from,
+        to: filters.to,
+        currency: filters.currency,
+        expenseMode: filters.expenseMode,
+        includeBreakdown: filters.includeBreakdown,
+      },
+      serverTime: new Date().toISOString(),
+      debugExpenseStatusCounts,
+      appliedExpenseFilter: expenseMode === 'includeSubmitted' 
+        ? ['SUBMITTED', 'APPROVED'] 
+        : ['APPROVED'],
     },
   };
 

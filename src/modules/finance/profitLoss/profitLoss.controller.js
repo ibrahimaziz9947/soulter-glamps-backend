@@ -32,10 +32,20 @@ const isValidDate = (dateString) => {
  *   -H "Authorization: Bearer YOUR_TOKEN"
  */
 export const getProfitAndLoss = asyncHandler(async (req, res) => {
-  const { from, to, currency, includeBreakdown, expenseMode } = req.query;
+  let { from, to, currency, includeBreakdown, expenseMode } = req.query;
+
+  // ============================================
+  // FIX: Normalize empty strings to undefined
+  // Empty strings from frontend can cause query issues
+  // ============================================
+  if (from === '') from = undefined;
+  if (to === '') to = undefined;
+  if (currency === '') currency = undefined;
+  if (expenseMode === '') expenseMode = undefined;
 
   // TEMP LOG: Debug query parameters
   console.log('[P&L] query', req.query);
+  console.log('[P&L] normalized', { from, to, currency, expenseMode });
 
   // Validate date parameters
   if (from && !isValidDate(from)) {
@@ -195,10 +205,20 @@ export const getProfitAndLoss = asyncHandler(async (req, res) => {
  *   -H "Authorization: Bearer YOUR_TOKEN"
  */
 export const getProfitAndLossSummary = asyncHandler(async (req, res) => {
-  const { from, to, currency, expenseMode } = req.query;
+  let { from, to, currency, expenseMode } = req.query;
+
+  // ============================================
+  // FIX: Normalize empty strings to undefined
+  // Empty strings from frontend can cause query issues
+  // ============================================
+  if (from === '') from = undefined;
+  if (to === '') to = undefined;
+  if (currency === '') currency = undefined;
+  if (expenseMode === '') expenseMode = undefined;
 
   // TEMP LOG: Debug query parameters
   console.log('[P&L Summary] query', req.query);
+  console.log('[P&L Summary] normalized', { from, to, currency, expenseMode });
 
   // Validate date parameters
   if (from && !isValidDate(from)) {
