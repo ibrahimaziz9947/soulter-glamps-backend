@@ -26,9 +26,24 @@ export const getAllBookings = asyncHandler(async (req, res) => {
     sort = 'createdAt_desc' 
   } = req.query;
 
+  // Debug logging (only in development)
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[SUPER ADMIN BOOKINGS] Raw query params:', { from, to, page, limit, status, search, sort });
+  }
+
   // Parse date range (defaults to last 30 days)
   // NOTE: Filtering by createdAt (booking creation date), not checkInDate
+  // This matches the dashboard logic for consistency
   const dateRange = parseDateRange(from, to, 30);
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[SUPER ADMIN BOOKINGS] Parsed date range:', {
+      from: dateRange.fromISO,
+      to: dateRange.toISO,
+      fromObj: dateRange.from,
+      toObj: dateRange.to
+    });
+  }
 
   // Parse pagination with skip/take
   const pagination = getPagination(page, limit, 20);
@@ -41,8 +56,8 @@ export const getAllBookings = asyncHandler(async (req, res) => {
     },
   };
 
-  // Add status filter if provided
-  if (status) {
+  // Add status filter if provided (ignore 'ALL' or empty string)
+  if (status && status !== 'ALL' && status.trim() !== '') {
     where.status = status;
   }
 
@@ -63,6 +78,13 @@ export const getAllBookings = asyncHandler(async (req, res) => {
   const orderBy = {
     [sortField]: sortDirection.toLowerCase(),
   };
+
+  // Debug: Log where clause before query
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[SUPER ADMIN BOOKINGS] Where clause:', JSON.stringify(where, null, 2));
+    console.log('[SUPER ADMIN BOOKINGS] OrderBy:', orderBy);
+    console.log('[SUPER ADMIN BOOKINGS] Pagination:', { page: pagination.page, limit: pagination.limit, skip: (pagination.page - 1) * pagination.limit });
+  }
 
   // Execute queries in parallel: findMany + count with same filters
   const [items, total] = await Promise.all([
@@ -86,6 +108,51 @@ export const getAllBookings = asyncHandler(async (req, res) => {
     }),
     prisma.booking.count({ where }),
   ]);
+
+  // Debug: Log query results
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[SUPER ADMIN BOOKINGS] Query results:', { itemsFound: items.length, totalCount: total });
+    if (items.length > 0) {
+      console.log('[SUPER ADMIN BOOKINGS] First item:', items[0]);
+    }
+  }
+
+  // Compute aggregates for the entire filtered dataset (not just current page)
+  // This matches the dashboard approach
+  const [statusCounts, revenueAgg] = await Promise.all([
+    // Count by status
+    prisma.booking.groupBy({
+      by: ['status'],
+      where,
+      _count: { id: true },
+    }),
+    // Sum revenue from CONFIRMED and COMPLETED bookings
+    prisma.booking.aggregate({
+      where: {
+        ...where,
+        status: { in: ['CONFIRMED', 'COMPLETED'] },
+      },
+      _sum: { totalAmount: true },
+    }),
+  ]);
+
+  // Build status counts object
+  const confirmedCount = statusCounts.find(s => s.status === 'CONFIRMED')?._count?.id || 0;
+  const pendingCount = statusCounts.find(s => s.status === 'PENDING')?._count?.id || 0;
+  const cancelledCount = statusCounts.find(s => s.status === 'CANCELLED')?._count?.id || 0;
+  const completedCount = statusCounts.find(s => s.status === 'COMPLETED')?._count?.id || 0;
+  const revenueCents = revenueAgg._sum.totalAmount || 0;
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[SUPER ADMIN BOOKINGS] Aggregates:', {
+      totalBookings: total,
+      confirmedCount,
+      pendingCount,
+      cancelledCount,
+      completedCount,
+      revenueCents
+    });
+  }
 
   // Format items for light list response
   // All money values are in cents (integer)
@@ -118,6 +185,14 @@ export const getAllBookings = asyncHandler(async (req, res) => {
       range: {
         from: dateRange.fromISO,
         to: dateRange.toISO,
+      },
+      aggregates: {
+        totalBookings: total,
+        confirmedCount,
+        pendingCount,
+        cancelledCount,
+        completedCount,
+        revenueCents,
       },
     },
   });

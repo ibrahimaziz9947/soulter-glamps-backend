@@ -59,6 +59,14 @@ Retrieve a paginated list of bookings with filtering and search capabilities.
     "range": {
       "from": "2025-12-19T00:00:00.000Z",
       "to": "2026-01-18T23:59:59.999Z"
+    },
+    "aggregates": {
+      "totalBookings": 45,
+      "confirmedCount": 30,
+      "pendingCount": 10,
+      "cancelledCount": 3,
+      "completedCount": 2,
+      "revenueCents": 1500000
     }
   }
 }
@@ -228,7 +236,12 @@ GET /api/super-admin/bookings/invalid-id
   - Customer name (snapshot field)
   - Customer email
 
-### Sorting
+### Status Filtering
+- Accepts: `PENDING`, `CONFIRMED`, `CANCELLED`, `COMPLETED`
+- Special handling:
+  - Empty string or `'ALL'` - ignored (returns all statuses)
+  - Invalid status - returns no results
+- Frontend should send `undefined` or omit parameter for "All Status" option
 - Format: `field_direction` (e.g., `createdAt_desc`, `totalAmount_asc`)
 - Default: `createdAt_desc` (newest first)
 - Supported fields: Any booking field (createdAt, totalAmount, checkInDate, etc.)
@@ -246,6 +259,15 @@ GET /api/super-admin/bookings/invalid-id
 - Only includes agentId (not full agent object)
 - All money values returned as **cents (integers)**:
   - `totalAmountCents` - Booking total in cents
+
+### Aggregates
+- Computed from entire filtered dataset (not just current page)
+- **totalBookings**: Total count matching filters
+- **confirmedCount**: Count of CONFIRMED bookings
+- **pendingCount**: Count of PENDING bookings
+- **cancelledCount**: Count of CANCELLED bookings
+- **completedCount**: Count of COMPLETED bookings
+- **revenueCents**: Sum of totalAmount for CONFIRMED + COMPLETED bookings (in cents)
 
 ### Related Entities
 - Customer information (User with CUSTOMER role)
