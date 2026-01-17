@@ -90,8 +90,7 @@ export const getStatements = async (filters = {}) => {
     if (search) {
       incomeWhere.AND.push({
         OR: [
-          { title: { contains: search, mode: 'insensitive' } },
-          { source: { contains: search, mode: 'insensitive' } },
+          { reference: { contains: search, mode: 'insensitive' } },
           { notes: { contains: search, mode: 'insensitive' } },
         ],
       });
@@ -102,7 +101,8 @@ export const getStatements = async (filters = {}) => {
       select: {
         id: true,
         dateReceived: true,
-        title: true,
+        reference: true,
+        notes: true,
         source: true,
         status: true,
         currency: true,
@@ -187,7 +187,7 @@ export const getStatements = async (filters = {}) => {
       if (search) {
         purchaseWhere.AND.push({
           OR: [
-            { title: { contains: search, mode: 'insensitive' } },
+            { reference: { contains: search, mode: 'insensitive' } },
             { vendorName: { contains: search, mode: 'insensitive' } },
             { notes: { contains: search, mode: 'insensitive' } },
           ],
@@ -199,7 +199,8 @@ export const getStatements = async (filters = {}) => {
         select: {
           id: true,
           purchaseDate: true,
-          title: true,
+          reference: true,
+          notes: true,
           vendorName: true,
           status: true,
           currency: true,
@@ -224,7 +225,7 @@ export const getStatements = async (filters = {}) => {
         date: income.dateReceived,
         type: 'INCOME',
         referenceId: income.id,
-        title: income.title || 'Income',
+        title: income.reference || income.notes || 'Income',
         counterparty: null,
         category: income.source || 'Other',
         status: income.status,
@@ -260,7 +261,7 @@ export const getStatements = async (filters = {}) => {
         date: purchase.purchaseDate,
         type: 'PURCHASE',
         referenceId: purchase.id,
-        title: purchase.title || 'Purchase',
+        title: purchase.reference || purchase.vendorName || 'Purchase',
         counterparty: purchase.vendorName,
         category: purchase.vendorName || 'Uncategorized',
         status: purchase.status,
