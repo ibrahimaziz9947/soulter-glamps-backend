@@ -152,7 +152,18 @@ export const getDashboardData = async (filters = {}) => {
   // VERIFICATION: Extract values WITHOUT modification
   // ============================================
   // Profit-loss returns: { summary: { totalIncomeCents, totalExpensesCents, ... } }
-  const { totalIncomeCents, totalExpensesCents, totalPurchasesCents, netProfitCents } = profitLossData.summary || {};
+  // Ensure we have valid numbers, default to 0 if missing
+  const profitLossSummary = profitLossData?.summary || {};
+  const totalIncomeCents = profitLossSummary.totalIncomeCents || 0;
+  const totalExpensesCents = profitLossSummary.totalExpensesCents || 0;
+  const totalPurchasesCents = profitLossSummary.totalPurchasesCents || 0;
+  const netProfitCents = profitLossSummary.netProfitCents || 0;
+
+  console.log('[Dashboard Service] Profit-Loss Response Structure:', {
+    hasData: !!profitLossData,
+    hasSummary: !!profitLossData?.summary,
+    summaryKeys: profitLossData?.summary ? Object.keys(profitLossData.summary) : [],
+  });
 
   console.log('[Dashboard Service] Profit-Loss KPIs:', {
     totalIncomeCents,
@@ -214,22 +225,24 @@ export const getDashboardData = async (filters = {}) => {
   // ============================================
   // VERIFICATION: We use the EXACT data from getStatements, already sorted by date DESC
   // Statements returns: { items: [...] }
-  // We just slice the first {limit} items - no re-sorting or re-formatting
-  // This guarantees the same order and format as GET /api/finance/statements
+  // Each item already has direction field and absolute amountCents from statements service
   const recentTransactions = statementsItems
     .slice(0, limit)
     .map((entry) => ({
       id: entry.id,
       date: entry.date,
       type: entry.type,
-      description: entry.description,
-      amountCents: entry.amountCents,
+      description: entry.title || entry.counterparty || 'Transaction', // Use title as description
+      amountCents: entry.amountCents, // Already absolute from statements
       currency: entry.currency,
-      direction: entry.direction, // 'in' or 'out'
+      direction: entry.direction, // 'in' or 'out' from statements
       referenceId: entry.referenceId || null,
     }));
 
   console.log('[Dashboard Service] Recent transactions:', recentTransactions.length);
+  if (recentTransactions.length > 0) {
+    console.log('[Dashboard Service] Sample transaction:', JSON.stringify(recentTransactions[0], null, 2));
+  }
 
   // ============================================
   // CURRENCY VERIFICATION
@@ -248,7 +261,7 @@ export const getDashboardData = async (filters = {}) => {
   // ============================================
   // BUILD RESPONSE
   // ============================================
-  return {
+  const response = {
     range: {
       from: fromISO,
       to: toISO,
@@ -264,4 +277,12 @@ export const getDashboardData = async (filters = {}) => {
     },
     recentTransactions,
   };
+
+  // Final validation log - ensure KPIs are not all zero
+  console.log('[Dashboard Service] FINAL RESPONSE KPIs:', response.kpis);
+  if (totalIncomeCents === 0 && totalExpensesCents === 0 && netProfitCents === 0) {
+    console.warn('[Dashboard Service] WARNING: All KPIs are zero - this may indicate data issue');
+  }
+
+  return response;
 };

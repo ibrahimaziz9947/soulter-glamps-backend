@@ -61,6 +61,11 @@ async function testExactFailingQuery() {
     console.log('  - Overdue Payables: $' + (data.data.kpis.overduePayablesCents / 100).toFixed(2));
     console.log('  - Net Cash Flow: $' + (data.data.kpis.netCashFlowCents / 100).toFixed(2));
     console.log('  - Recent Transactions:', data.data.recentTransactions.length);
+    
+    // Check for zero KPIs
+    const allZero = data.data.kpis.totalIncomeCents === 0 && 
+                     data.data.kpis.totalExpensesCents === 0 && 
+                     data.data.kpis.netProfitCents === 0;\n    if (allZero) {\n      console.log('\\n⚠️  WARNING: All KPIs are zero - this may indicate a data or calculation issue');\n    }\n    \n    // Display sample transactions with direction\n    if (data.data.recentTransactions.length > 0) {\n      console.log('\\n💰 Sample Recent Transactions:');\n      data.data.recentTransactions.slice(0, 3).forEach((tx) => {\n        const sign = tx.direction === 'in' ? '+' : '-';\n        const dirSymbol = tx.direction === 'in' ? '⬇️ ' : '⬆️ ';\n        console.log(`  ${dirSymbol}${sign}$${(tx.amountCents / 100).toFixed(2)} - ${tx.type} - ${tx.description} (${tx.date})`);\n      });\n    }
     return true;
   } else {
     console.log('\n❌ FAILED! Dashboard endpoint returned an error');

@@ -355,6 +355,10 @@ export const getStatements = async (filters = {}) => {
     // ============================================
     const responseItems = paginatedItems.map(item => ({
       ...item,
+      // Add explicit direction field for dashboard
+      direction: item.amountCents >= 0 ? 'in' : 'out',
+      // Ensure amountCents is absolute value in response
+      amountCents: Math.abs(item.amountCents),
       date: item.date ? item.date.toISOString() : null,
       createdAt: item.createdAt ? item.createdAt.toISOString() : null,
       updatedAt: item.updatedAt ? item.updatedAt.toISOString() : null,
