@@ -9,6 +9,7 @@ import purchaseRoutes from '../modules/finance/purchases/purchase.routes.js';
 import payablesRoutes from '../modules/finance/payables/payables.routes.js';
 import profitLossRoutes from '../modules/finance/profitLoss/profitLoss.routes.js';
 import statementsRoutes from '../modules/finance/statements/statements.routes.js';
+import dashboardRoutes from '../modules/finance/dashboard/dashboard.routes.js';
 
 const router = express.Router();
 
@@ -34,6 +35,9 @@ router.use('/finance/profit-loss', profitLossRoutes);
 
 // Mount modular statements routes
 router.use('/finance/statements', statementsRoutes);
+
+// Mount modular dashboard routes
+router.use('/finance/dashboard', dashboardRoutes);
 
 // Commission routes
 router.post('/finance/commissions', authRequired, requireAdmin, financeController.recordCommission);
