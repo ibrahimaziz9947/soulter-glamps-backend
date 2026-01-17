@@ -113,6 +113,9 @@ export const getStatements = async (filters = {}) => {
     });
 
     console.log('[Statements Service] Income records fetched:', incomeRecords.length);
+    if (incomeRecords.length > 0) {
+      console.log('[Statements Service] Sample income:', JSON.stringify(incomeRecords[0], null, 2));
+    }
 
     // ============================================
     // FETCH EXPENSE RECORDS
@@ -158,6 +161,9 @@ export const getStatements = async (filters = {}) => {
     });
 
     console.log('[Statements Service] Expense records fetched:', expenseRecords.length);
+    if (expenseRecords.length > 0) {
+      console.log('[Statements Service] Sample expense:', JSON.stringify(expenseRecords[0], null, 2));
+    }
 
     // ============================================
     // FETCH PURCHASE RECORDS (if enabled)
@@ -211,6 +217,9 @@ export const getStatements = async (filters = {}) => {
       });
 
       console.log('[Statements Service] Purchase records fetched:', purchaseRecords.length);
+      if (purchaseRecords.length > 0) {
+        console.log('[Statements Service] Sample purchase:', JSON.stringify(purchaseRecords[0], null, 2));
+      }
     }
 
     // ============================================
@@ -273,6 +282,9 @@ export const getStatements = async (filters = {}) => {
     });
 
     console.log('[Statements Service] Total ledger entries before sort:', ledgerEntries.length);
+    if (ledgerEntries.length > 0) {
+      console.log('[Statements Service] Sample ledger entry:', JSON.stringify(ledgerEntries[0], null, 2));
+    }
 
     // ============================================
     // SORT BY REQUESTED FIELD
@@ -324,25 +336,37 @@ export const getStatements = async (filters = {}) => {
     const endIndex = startIndex + pageSize;
     const paginatedItems = ledgerEntries.slice(startIndex, endIndex);
 
-    console.log('[Statements Service] Pagination:', {
-      totalItems,
-      totalPages,
-      currentPage: page,
-      pageSize,
-      returnedItems: paginatedItems.length,
-      totals: { totalInCents, totalOutCents, netCents },
-    });
+    console.log('[Statements Service] ====== PAGINATION DEBUG ======');
+    console.log('[Statements Service] Input - page:', page, 'pageSize:', pageSize);
+    console.log('[Statements Service] Computed - startIndex:', startIndex, 'endIndex:', endIndex);
+    console.log('[Statements Service] Total items:', totalItems);
+    console.log('[Statements Service] Paginated items length:', paginatedItems.length);
+    console.log('[Statements Service] Total pages:', totalPages);
+    console.log('[Statements Service] Totals:', { totalInCents, totalOutCents, netCents });
+    if (paginatedItems.length > 0) {
+      console.log('[Statements Service] First paginated item:', JSON.stringify(paginatedItems[0], null, 2));
+    } else {
+      console.log('[Statements Service] WARNING: paginatedItems is EMPTY despite totalItems =', totalItems);
+    }
+    console.log('[Statements Service] ===============================');
 
     // ============================================
     // BUILD RESPONSE
     // ============================================
+    const responseItems = paginatedItems.map(item => ({
+      ...item,
+      date: item.date ? item.date.toISOString() : null,
+      createdAt: item.createdAt ? item.createdAt.toISOString() : null,
+      updatedAt: item.updatedAt ? item.updatedAt.toISOString() : null,
+    }));
+
+    console.log('[Statements Service] Response items length:', responseItems.length);
+    if (responseItems.length > 0) {
+      console.log('[Statements Service] First response item:', JSON.stringify(responseItems[0], null, 2));
+    }
+
     return {
-      items: paginatedItems.map(item => ({
-        ...item,
-        date: item.date ? item.date.toISOString() : null,
-        createdAt: item.createdAt ? item.createdAt.toISOString() : null,
-        updatedAt: item.updatedAt ? item.updatedAt.toISOString() : null,
-      })),
+      items: responseItems,
       pagination: {
         page,
         pageSize,
