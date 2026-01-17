@@ -5,10 +5,14 @@
 
 import express from 'express';
 import superAdminDashboardRoutes from '../modules/super-admin/dashboard/super-admin-dashboard.routes.js';
+import superAdminBookingsRoutes from '../modules/super-admin/bookings/super-admin-bookings.routes.js';
 
 const router = express.Router();
 
 // Dashboard routes
 router.use('/dashboard', superAdminDashboardRoutes);
+
+// Bookings routes
+router.use('/bookings', superAdminBookingsRoutes);
 
 export default router;
