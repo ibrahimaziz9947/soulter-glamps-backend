@@ -133,7 +133,7 @@ export const getStatements = async (filters = {}) => {
         OR: [
           { title: { contains: search, mode: 'insensitive' } },
           { description: { contains: search, mode: 'insensitive' } },
-          { category: { name: { contains: search, mode: 'insensitive' } } },
+          { vendor: { contains: search, mode: 'insensitive' } },
         ],
       });
     }

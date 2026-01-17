@@ -46,7 +46,8 @@ export const getStatements = asyncHandler(async (req, res) => {
     pageSize, 
     sort,
     sortBy,      // Frontend sends sortBy
-    sortOrder    // Frontend sends sortOrder
+    sortOrder,   // Frontend sends sortOrder
+    debug        // Debug mode for detailed errors
   } = req.query;
 
   // ============================================
@@ -194,12 +195,27 @@ export const getStatements = asyncHandler(async (req, res) => {
       data: result,
     });
   } catch (error) {
-    // Enhanced error logging for production debugging
-    console.error('[STATEMENTS_ERROR]', error);
-    console.error('[STATEMENTS_ERROR] Stack:', error.stack);
-    console.error('[STATEMENTS_ERROR] Filters:', filters);
+    // Enhanced error logging for production debugging on Railway
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.error('STATEMENTS_ERROR', error?.message);
+    console.error('STATEMENTS_ERROR Stack:', error?.stack);
+    console.error('STATEMENTS_ERROR Query:', JSON.stringify(req.query, null, 2));
+    console.error('STATEMENTS_ERROR Filters:', JSON.stringify(filters, null, 2));
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     
-    // Re-throw to let asyncHandler deal with it
+    // If debug mode is enabled, return detailed error
+    if (debug === '1' || debug === 'true') {
+      return res.status(500).json({
+        success: false,
+        error: error?.message || 'Unknown error',
+        debugId: 'STATEMENTS_ERROR',
+        stack: error?.stack,
+        query: req.query,
+        filters,
+      });
+    }
+    
+    // Re-throw to let asyncHandler deal with it (generic error for production)
     throw error;
   }
 });
