@@ -8,6 +8,7 @@ import incomeRoutes from '../modules/finance/income/income.routes.js';
 import purchaseRoutes from '../modules/finance/purchases/purchase.routes.js';
 import payablesRoutes from '../modules/finance/payables/payables.routes.js';
 import profitLossRoutes from '../modules/finance/profitLoss/profitLoss.routes.js';
+import statementsRoutes from '../modules/finance/statements/statements.routes.js';
 
 const router = express.Router();
 
@@ -30,6 +31,9 @@ router.use('/finance/payables', payablesRoutes);
 
 // Mount modular profit & loss routes
 router.use('/finance/profit-loss', profitLossRoutes);
+
+// Mount modular statements routes
+router.use('/finance/statements', statementsRoutes);
 
 // Commission routes
 router.post('/finance/commissions', authRequired, requireAdmin, financeController.recordCommission);
