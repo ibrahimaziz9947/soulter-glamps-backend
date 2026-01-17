@@ -136,31 +136,31 @@ async function verifyDefaultDateRange() {
   allMatch &= compareNumbers(
     'Total Income (cents)',
     dashboardData.data.kpis.totalIncomeCents,
-    profitLossData.data.totalIncomeCents
+    profitLossData.data.summary.totalIncomeCents
   );
 
   allMatch &= compareNumbers(
     'Total Expenses (cents)',
     dashboardData.data.kpis.totalExpensesCents,
-    profitLossData.data.totalExpensesCents
+    profitLossData.data.summary.totalExpensesCents
   );
 
   allMatch &= compareNumbers(
     'Net Profit (cents)',
     dashboardData.data.kpis.netProfitCents,
-    profitLossData.data.netProfitCents
+    profitLossData.data.summary.netProfitCents
   );
 
   console.log('\n📝 Comparing Recent Transactions:');
   const dashboardTxCount = dashboardData.data.recentTransactions.length;
-  const statementsTxCount = statementsData.data.length;
+  const statementsTxCount = statementsData.data.items.length;
   
   console.log(`  Transaction count: Dashboard=${dashboardTxCount}, Statements=${statementsTxCount}`);
   
   if (dashboardTxCount > 0 && statementsTxCount > 0) {
     // Compare first transaction
     const dashTx = dashboardData.data.recentTransactions[0];
-    const stmtTx = statementsData.data[0];
+    const stmtTx = statementsData.data.items[0];
     
     console.log('\n  First Transaction Comparison:');
     console.log(`    Dashboard: ${dashTx.type} - ${dashTx.description} - $${(dashTx.amountCents / 100).toFixed(2)} (${dashTx.date})`);

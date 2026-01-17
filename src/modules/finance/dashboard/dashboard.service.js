@@ -151,8 +151,8 @@ export const getDashboardData = async (filters = {}) => {
   // ============================================
   // VERIFICATION: Extract values WITHOUT modification
   // ============================================
-  // These values come DIRECTLY from computeProfitAndLoss - no recalculation
-  const { totalIncomeCents, totalExpensesCents, totalPurchasesCents, netProfitCents } = profitLossData;
+  // Profit-loss returns: { summary: { totalIncomeCents, totalExpensesCents, ... } }
+  const { totalIncomeCents, totalExpensesCents, totalPurchasesCents, netProfitCents } = profitLossData.summary || {};
 
   console.log('[Dashboard Service] Profit-Loss KPIs:', {
     totalIncomeCents,
@@ -185,12 +185,14 @@ export const getDashboardData = async (filters = {}) => {
   // ============================================
   // COMPUTE NET CASH FLOW FROM STATEMENTS (using EXACT data from statements service)
   // ============================================
+  // Statements returns: { items: [...], pagination: {...}, totals: {...} }
   // Net cash flow = sum of all cash movements (in - out) from the SAME statements data
   // This ensures consistency - we're using the exact same filtered dataset as statements endpoint
   let netCashFlowCents = 0;
+  const statementsItems = statementsFullData.items || [];
   
-  if (statementsFullData.data && statementsFullData.data.length > 0) {
-    netCashFlowCents = statementsFullData.data.reduce((sum, entry) => {
+  if (statementsItems.length > 0) {
+    netCashFlowCents = statementsItems.reduce((sum, entry) => {
       if (entry.direction === 'in') {
         return sum + (entry.amountCents || 0);
       } else if (entry.direction === 'out') {
@@ -200,7 +202,7 @@ export const getDashboardData = async (filters = {}) => {
     }, 0);
   }
 
-  console.log('[Dashboard Service] Net cash flow computed from statements:', netCashFlowCents);
+  console.log('[Dashboard Service] Net cash flow computed from statements:', netCashFlowCents, 'items:', statementsItems.length);
 
   // ============================================
   // INVENTORY VALUE (Placeholder for future)
@@ -211,9 +213,10 @@ export const getDashboardData = async (filters = {}) => {
   // RECENT TRANSACTIONS (Limited subset from SAME statements data)
   // ============================================
   // VERIFICATION: We use the EXACT data from getStatements, already sorted by date DESC
+  // Statements returns: { items: [...] }
   // We just slice the first {limit} items - no re-sorting or re-formatting
   // This guarantees the same order and format as GET /api/finance/statements
-  const recentTransactions = statementsFullData.data
+  const recentTransactions = statementsItems
     .slice(0, limit)
     .map((entry) => ({
       id: entry.id,
