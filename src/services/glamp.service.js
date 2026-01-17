@@ -12,26 +12,58 @@ const isValidUUID = (id) => {
 /**
  * Create a new glamp
  * @access ADMIN, SUPER_ADMIN
+ * 
+ * Accepts:
+ * {
+ *   name: string,
+ *   description: string,
+ *   pricePerNightCents: number,  // Price in cents
+ *   maxGuests: number (capacity),
+ *   status?: "ACTIVE"|"INACTIVE",
+ *   features?: string[],
+ *   amenities?: string[],
+ *   saveAsDraft?: boolean
+ * }
+ * 
+ * Note: Additional fields (categoryId, areaSqft, bedrooms, bathrooms, images)
+ * would require schema updates and are not yet supported.
  */
 export const createGlamp = async (glampData) => {
-  const { name, description, pricePerNight, maxGuests, status, features = [], amenities = [] } = glampData;
+  const { 
+    name, 
+    description, 
+    pricePerNightCents, // Accept cents-based naming
+    pricePerNight,      // Also accept legacy naming
+    capacity,           // Accept capacity as alias for maxGuests
+    maxGuests, 
+    status, 
+    features = [], 
+    amenities = [],
+    saveAsDraft = false
+  } = glampData;
+
+  // Support both naming conventions for price
+  const price = pricePerNightCents || pricePerNight;
+  // Support both capacity and maxGuests
+  const guestCapacity = capacity || maxGuests;
 
   // Validate required fields
-  if (!name || !description || !pricePerNight || !maxGuests) {
-    throw new ValidationError('Name, description, pricePerNight, and maxGuests are required');
+  if (!name || !description || !price || !guestCapacity) {
+    throw new ValidationError('Name, description, pricePerNightCents, and maxGuests (or capacity) are required');
   }
 
   // Validate numeric fields
-  if (pricePerNight <= 0) {
+  if (price <= 0) {
     throw new ValidationError('Price per night must be greater than 0');
   }
 
-  if (maxGuests <= 0) {
-    throw new ValidationError('Max guests must be greater than 0');
+  if (guestCapacity <= 0) {
+    throw new ValidationError('Max guests/capacity must be greater than 0');
   }
 
   // Validate status if provided
-  if (status && !['ACTIVE', 'INACTIVE'].includes(status)) {
+  const glampStatus = saveAsDraft ? 'INACTIVE' : (status || 'ACTIVE');
+  if (!['ACTIVE', 'INACTIVE'].includes(glampStatus)) {
     throw new ValidationError('Status must be ACTIVE or INACTIVE');
   }
 
@@ -39,12 +71,19 @@ export const createGlamp = async (glampData) => {
     data: {
       name: name.trim(),
       description: description.trim(),
-      pricePerNight: parseInt(pricePerNight),
-      maxGuests: parseInt(maxGuests),
-      status: status || 'ACTIVE',
+      pricePerNight: parseInt(price), // Stored as cents in DB
+      maxGuests: parseInt(guestCapacity),
+      status: glampStatus,
       features,
       amenities
     },
+  });
+
+  console.log('[GLAMP] Created glamp:', {
+    id: glamp.id,
+    name: glamp.name,
+    pricePerNightCents: glamp.pricePerNight,
+    status: glamp.status,
   });
 
   return glamp;
