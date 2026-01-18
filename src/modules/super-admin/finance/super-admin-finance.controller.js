@@ -56,8 +56,18 @@ export const getFinancialSummary = asyncHandler(async (req, res) => {
     includePurchases: true,
   });
 
+  // DEBUG: Verify response structure (remove after production verification)
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[Finance Summary] Ledger response keys:', Object.keys(ledgerData));
+    console.log('[Finance Summary] Ledger items exist:', Boolean(ledgerData.items));
+    console.log('[Finance Summary] Ledger items length:', ledgerData.items?.length || 0);
+  }
+
+  // Safe access to items array (statements service returns { items, pagination, totals })
+  const ledgerItems = ledgerData.items || [];
+  
   // Map ledger entries to simplified format
-  const latestEntries = ledgerData.data.map(entry => ({
+  const latestEntries = ledgerItems.map(entry => ({
     id: entry.id,
     date: entry.date,
     type: entry.type,
@@ -76,14 +86,24 @@ export const getFinancialSummary = asyncHandler(async (req, res) => {
     // No status filter = gets all statuses, then we filter below
   });
 
+  // DEBUG: Verify response structure (remove after production verification)
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[Finance Summary] Payables response keys:', Object.keys(payablesData));
+    console.log('[Finance Summary] Payables items exist:', Boolean(payablesData.items));
+    console.log('[Finance Summary] Payables items length:', payablesData.items?.length || 0);
+  }
+
+  // Safe access to items array (payables service returns { items, total, page, pageSize, totalPages })
+  const payablesItems = payablesData.items || [];
+  
   // Filter for open payables (UNPAID or PARTIAL)
-  const openPayables = payablesData.data.filter(
+  const openPayables = payablesItems.filter(
     p => p.paymentStatus === 'UNPAID' || p.paymentStatus === 'PARTIAL'
   );
 
   const openPayablesCount = openPayables.length;
   const openPayablesAmountCents = openPayables.reduce(
-    (sum, p) => sum + (p.remainingAmountCents || 0), 
+    (sum, p) => sum + (p.outstandingCents || p.remainingAmountCents || 0), 
     0
   );
 
@@ -110,8 +130,9 @@ export const getFinancialSummary = asyncHandler(async (req, res) => {
         profitCents: profitLossData.netProfitCents || 0,
       },
       ledger: {
-        totalEntries: ledgerData.meta.total,
+        totalEntries: ledgerData.pagination?.totalItems || 0,
         latestEntries,
+        totals: ledgerData.totals || { totalInCents: 0, totalOutCents: 0, netCents: 0 },
       },
       payables: {
         openCount: openPayablesCount,
