@@ -148,13 +148,22 @@ export const getDashboardSummary = async (filters) => {
     // Call existing profit/loss service
     const profitLoss = await computeProfitAndLoss(plFilters);
 
+    // P&L service returns data in summary object
+    const summary = profitLoss.summary || {};
+    
     financeSnapshot = {
-      revenueCents: profitLoss.totalIncomeCents || 0,
-      expenseCents: profitLoss.totalExpensesCents || 0,
-      profitCents: profitLoss.netProfitCents || 0,
+      revenueCents: summary.totalIncomeCents || 0,
+      expenseCents: (summary.totalExpensesCents || 0) + (summary.totalPurchasesCents || 0), // Include purchases in expenses
+      profitCents: summary.netProfitCents || 0,
     };
 
     console.log('[SUPER ADMIN DASHBOARD] financeSnapshot (from P&L service):', financeSnapshot);
+    console.log('[SUPER ADMIN DASHBOARD] P&L summary breakdown:', {
+      income: summary.totalIncomeCents || 0,
+      expenses: summary.totalExpensesCents || 0,
+      purchases: summary.totalPurchasesCents || 0,
+      netProfit: summary.netProfitCents || 0,
+    });
   } catch (error) {
     console.error('[SUPER ADMIN DASHBOARD] Failed to compute finance snapshot:', error);
     // Fallback to basic calculation if P&L service fails
