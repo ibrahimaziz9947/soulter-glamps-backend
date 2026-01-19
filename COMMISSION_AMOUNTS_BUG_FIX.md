@@ -251,3 +251,4 @@ To verify the fix works in the UI:
 - No database schema changes required
 - No breaking changes to API response structure
 - Debug logging only appears in non-production environments
+![alt text](image.png)

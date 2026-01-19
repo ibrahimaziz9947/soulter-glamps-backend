@@ -95,12 +95,20 @@ export const getAllBookings = asyncHandler(async (req, res) => {
         createdAt: true,
         status: true,
         customerName: true, // Snapshot field
-        glampName: true, // Snapshot field
+        glampName: true, // Snapshot field (fallback)
         totalAmount: true, // Amount in cents (integer)
         agentId: true, // Include if agent exists
         checkInDate: true,
         checkOutDate: true,
         guests: true,
+        glampId: true, // Include for reference
+        // Include glamp relation to get actual name
+        glamp: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
       orderBy,
       skip: (pagination.page - 1) * pagination.limit,
@@ -161,7 +169,9 @@ export const getAllBookings = asyncHandler(async (req, res) => {
     createdAt: booking.createdAt,
     status: booking.status,
     customerName: booking.customerName,
-    glampName: booking.glampName,
+    glampId: booking.glampId,
+    // Use actual glamp name from relation, fallback to snapshot, then "Unknown"
+    glampName: booking.glamp?.name || booking.glampName || 'Unknown',
     totalAmountCents: booking.totalAmount, // Explicitly named as cents
     agentId: booking.agentId, // null if no agent
     checkInDate: booking.checkInDate,
@@ -232,13 +242,12 @@ export const getBookingById = asyncHandler(async (req, res) => {
         select: {
           id: true,
           name: true,
-          address: true,
-          city: true,
-          state: true,
-          zipCode: true,
+          description: true,
           pricePerNight: true, // Cents
           maxGuests: true,
           status: true,
+          features: true,
+          amenities: true,
         },
       },
       commission: {
@@ -272,8 +281,15 @@ export const getBookingById = asyncHandler(async (req, res) => {
     });
   }
 
+  // Format response to ensure glampName is always populated
+  const formattedBooking = {
+    ...booking,
+    glampName: booking.glamp?.name || booking.glampName || 'Unknown',
+    totalAmountCents: booking.totalAmount,
+  };
+
   return res.status(200).json({
     success: true,
-    data: booking,
+    data: formattedBooking,
   });
 });
