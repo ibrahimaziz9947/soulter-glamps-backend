@@ -149,6 +149,13 @@ export const getAllCommissions = async (filters = {}, pagination = {}, orderBy =
     totalAmountCents: totalAgg._sum.amount || 0,
   };
 
+  // Map items to include amountCents field
+  // DB stores amount in cents, so we just rename the field
+  const mappedItems = items.map(item => ({
+    ...item,
+    amountCents: item.amount, // DB already stores in cents
+  }));
+
   // Debug logging (only in non-production)
   if (process.env.NODE_ENV !== 'production') {
     console.log('[COMMISSIONS] Query results:', {
@@ -157,10 +164,23 @@ export const getAllCommissions = async (filters = {}, pagination = {}, orderBy =
       paidCount: aggregatesData.paidCount,
       itemsReturned: items.length,
     });
+    console.log('[COMMISSIONS] Aggregates (cents):', {
+      pendingAmountCents: aggregatesData.pendingAmountCents,
+      paidAmountCents: aggregatesData.paidAmountCents,
+      totalAmountCents: aggregatesData.totalAmountCents,
+    });
+    if (mappedItems.length > 0) {
+      console.log('[COMMISSIONS] First item:', {
+        id: mappedItems[0].id,
+        status: mappedItems[0].status,
+        amount: mappedItems[0].amount,
+        amountCents: mappedItems[0].amountCents,
+      });
+    }
   }
 
   return {
-    items,
+    items: mappedItems,
     total,
     aggregates: aggregatesData,
   };
