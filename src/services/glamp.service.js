@@ -118,6 +118,7 @@ export const getAllGlamps = async (filters = {}) => {
       description: true,
       pricePerNight: true,
       maxGuests: true,
+      availability: true,
       imageUrl: true,
       features: true,
       amenities: true,

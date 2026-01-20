@@ -136,6 +136,7 @@ model Glamp {
   pricePerNight Int // Price in smallest currency unit (e.g., cents)
   maxGuests     Int
   status        GlampStatus @default(ACTIVE)
+  availability  Boolean     @default(true) // Whether glamp is available for booking
   features      String[]    @default([]) // List of features (e.g., ["WiFi", "Pool"])
   amenities     String[]    @default([]) // List of amenities (e.g., ["
   imageUrl      String? // URL or path to glamp image (e.g., "/images/glamps/glamp1.jpg")
@@ -149,6 +150,7 @@ model Glamp {
 
   @@index([status])
   @@index([isTest])
+  @@index([availability])
 }
 
 // ============================================

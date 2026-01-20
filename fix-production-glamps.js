@@ -55,9 +55,10 @@ async function fixProductionGlamps() {
           data: { 
             status: 'INACTIVE',
             isTest: true,
+            availability: false,
           },
         });
-        console.log(`  ✓ UPDATED: ${glamp.name} -> INACTIVE, isTest=true`);
+        console.log(`  ✓ UPDATED: ${glamp.name} -> INACTIVE, isTest=true, availability=false`);
       }
     }
 
@@ -79,9 +80,10 @@ async function fixProductionGlamps() {
             imageUrl: imageUrls[i],
             isTest: false,
             status: 'ACTIVE',
+            availability: true,
           },
         });
-        console.log(`  ✓ ${glamp.name} -> ${imageUrls[i]}`);
+        console.log(`  ✓ ${glamp.name} -> ${imageUrls[i]}, availability=true`);
       }
     }
 
