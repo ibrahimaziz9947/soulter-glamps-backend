@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "node src/server.js",
     "start": "node src/server.js",
-    "start:railway": "npx prisma migrate resolve --rolled-back add_glamp_istest && npx prisma migrate deploy && node src/server.js",
+    "start:railway": "npx prisma migrate resolve --rolled-back add_glamp_istest && npx prisma migrate deploy && node fix-production-glamps.js && node src/server.js",
     "seed": "node prisma/seed.js",
     "migrate:deploy": "prisma migrate deploy",
     "migrate:status": "prisma migrate status",
