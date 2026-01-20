@@ -33,44 +33,67 @@ async function fixProductionGlamps() {
 
     console.log(`Found ${allGlamps.length} glamps\n`);
 
-    // Check for non-UUID IDs
-    const nonUuidGlamps = allGlamps.filter(g => !isValidUUID(g.id));
-    
-    if (nonUuidGlamps.length > 0) {
-      console.log(`⚠️  ${nonUuidGlamps.length} glamps have non-UUID IDs - this breaks frontend validation!\n`);
-      console.log('Non-UUID glamps:');
-      nonUuidGlamps.forEach(g => console.log(`  - ${g.id}: ${g.name}`));
-      
-      console.log('\n❌ CRITICAL: Database has non-UUID IDs');
-      console.log('Frontend requires UUID format IDs\n');
-      console.log('SOLUTION: Recreate glamps with proper UUIDs\n');
-      
-      // Option: Delete and recreate (dangerous in production)
-      console.log('Manually run these commands in Railway database:');
-      console.log('DELETE FROM "Glamp";');
-      console.log('Then use the seed script to recreate glamps with UUIDs.\n');
-    } else {
-      console.log('✓ All glamps have valid UUID IDs\n');
+    // Identify test glamps by name patterns
+    const testPatterns = [/test\s+glamp/i, /^\d{13}/]; // "Test Glamp" or starts with 13 digits
+    const testGlamps = allGlamps.filter(g => 
+      testPatterns.some(pattern => pattern.test(g.name))
+    );
+
+    const realGlamps = allGlamps.filter(g => 
+      !testPatterns.some(pattern => pattern.test(g.name))
+    );
+
+    console.log(`Real glamps: ${realGlamps.length}`);
+    console.log(`Test glamps: ${testGlamps.length}\n`);
+
+    // Mark test glamps as INACTIVE
+    if (testGlamps.length > 0) {
+      console.log('Marking test glamps as INACTIVE...');
+      for (const glamp of testGlamps) {
+        await prisma.glamp.update({
+          where: { id: glamp.id },
+          data: { 
+            status: 'INACTIVE',
+            isTest: true,
+          },
+        });
+        console.log(`  ✓ UPDATED: ${glamp.name} -> INACTIVE, isTest=true`);
+      }
     }
 
-    // Check for imageUrl and isTest columns
-    const hasImageUrl = allGlamps.some(g => g.imageUrl !== undefined);
-    const hasIsTest = allGlamps.some(g => g.isTest !== undefined);
+    // Assign imageUrl to real glamps
+    console.log('\nAssigning imageUrl to real glamps...');
+    const imageUrls = [
+      '/images/glamps/glamp1.jpg',
+      '/images/glamps/glamp2.jpg',
+      '/images/glamps/glamp3.jpg',
+      '/images/glamps/glamp4.jpg',
+    ];
 
-    console.log(`imageUrl column exists: ${hasImageUrl}`);
-    console.log(`isTest column exists: ${hasIsTest}\n`);
+    for (let i = 0; i < realGlamps.length && i < imageUrls.length; i++) {
+      const glamp = realGlamps[i];
+      if (glamp.imageUrl !== imageUrls[i]) {
+        await prisma.glamp.update({
+          where: { id: glamp.id },
+          data: { 
+            imageUrl: imageUrls[i],
+            isTest: false,
+            status: 'ACTIVE',
+          },
+        });
+        console.log(`  ✓ ${glamp.name} -> ${imageUrls[i]}`);
+      }
+    }
 
-    // Count active glamps
-    const activeGlamps = allGlamps.filter(g => g.status === 'ACTIVE');
-    console.log(`Currently ${activeGlamps.length} ACTIVE glamps (should be 4 real ones)\n`);
-
-    // Show all glamps
-    console.log('All glamps:');
-    allGlamps.forEach(g => {
-      const uuid = isValidUUID(g.id) ? '✓' : '✗';
-      console.log(`  [${uuid}] ${g.name} - Status: ${g.status}, ID: ${g.id}`);
+    // Final verification
+    const finalGlamps = await prisma.glamp.findMany({
+      where: { status: 'ACTIVE', isTest: false },
+      orderBy: { name: 'asc' },
     });
 
+    console.log(`\n✓ COMPLETE: ${finalGlamps.length} active glamps for customer site:`);
+    finalGlamps.forEach(g => console.log(`  - ${g.name} (${g.imageUrl})`));
+    
     console.log('\n=== END ===\n');
 
   } catch (error) {
