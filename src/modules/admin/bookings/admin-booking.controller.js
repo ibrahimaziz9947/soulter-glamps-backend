@@ -28,9 +28,24 @@ import { asyncHandler } from '../../../utils/errors.js';
  * }
  */
 export const createBooking = asyncHandler(async (req, res) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[DEBUG] Admin booking controller - request body:', JSON.stringify(req.body, null, 2));
+  }
   console.log('[ADMIN BOOKING CONTROLLER] Creating booking');
 
-  const booking = await adminBookingService.createAdminBooking(req.body);
+  let booking;
+  try {
+    booking = await adminBookingService.createAdminBooking(req.body);
+    
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[DEBUG] Booking created, returning response:', { bookingId: booking.id });
+    }
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[DEBUG] Error in createAdminBooking service:', error);
+    }
+    throw error; // Re-throw to let asyncHandler handle it
+  }
 
   return res.status(201).json({
     success: true,

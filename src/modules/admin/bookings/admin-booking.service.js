@@ -17,14 +17,23 @@ const isValidUUID = (id) => {
 
 /**
  * Find or create a CUSTOMER user
+ * @deprecated - Now using upsert directly in createAdminBooking for better atomicity
+ * Kept for reference
  */
 const findOrCreateCustomer = async (fullName, email, phone) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[DEBUG] findOrCreateCustomer called with:', { fullName, email, phone });
+  }
+
   // Check if customer already exists
   let customer = await prisma.user.findUnique({
     where: { email },
   });
 
   if (customer) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[DEBUG] Found existing customer:', { id: customer.id, email: customer.email, role: customer.role });
+    }
     // If exists but not a customer, throw error
     if (customer.role !== 'CUSTOMER') {
       throw new ValidationError('This email is already registered with a different role');
@@ -33,6 +42,9 @@ const findOrCreateCustomer = async (fullName, email, phone) => {
   }
 
   // Create new CUSTOMER user
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[DEBUG] Creating new customer user');
+  }
   const tempPassword = await hashPassword('customer-temp-' + Date.now());
   customer = await prisma.user.create({
     data: {
@@ -43,6 +55,10 @@ const findOrCreateCustomer = async (fullName, email, phone) => {
       active: true,
     },
   });
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[DEBUG] Customer created successfully:', { id: customer.id, email: customer.email });
+  }
 
   return customer;
 };
@@ -190,17 +206,71 @@ export const createAdminBooking = async (bookingData) => {
 
   totalAmountCents += addOnsTotal;
 
-  // Find or create customer
-  const customer = await findOrCreateCustomer(
-    guest.fullName,
-    guest.email,
-    guest.phone
-  );
+  // Find or create customer - use Prisma upsert for atomicity
+  // This prevents race conditions where duplicate emails could cause failures
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[DEBUG] Looking up/creating customer:', { fullName: guest.fullName, email: guest.email });
+  }
+
+  const tempPassword = await hashPassword('customer-temp-' + Date.now());
+  
+  let customer;
+  try {
+    customer = await prisma.user.upsert({
+      where: { email: guest.email.trim().toLowerCase() },
+      update: {
+        // If customer exists, optionally update name/phone if they changed
+        // For now, we keep the existing customer record as-is
+        // This preserves the original customer name in their profile
+      },
+      create: {
+        name: guest.fullName.trim(),
+        email: guest.email.trim().toLowerCase(),
+        password: tempPassword,
+        role: 'CUSTOMER',
+        active: true,
+      },
+    });
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[DEBUG] Customer resolved:', {
+        id: customer.id,
+        name: customer.name,
+        email: customer.email,
+        role: customer.role
+      });
+    }
+
+    // Verify this is a CUSTOMER role
+    if (customer.role !== 'CUSTOMER') {
+      throw new ValidationError('This email is already registered with a different role (admin/agent). Please use a different email for the guest.');
+    }
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[DEBUG] Error in customer upsert:', error);
+    }
+    throw error;
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[DEBUG] About to create booking with data:', {
+      customerId: customer.id,
+      customerName: guest.fullName, // Use the name provided in the booking form, not DB customer name
+      glampId,
+      glampName: glamp.name,
+      checkInDate: checkIn.toISOString(),
+      checkOutDate: checkOut.toISOString(),
+      guests: totalGuests,
+      totalAmount: totalAmountCents,
+      status: paymentStatus === 'PAID' ? 'CONFIRMED' : 'PENDING',
+    });
+  }
 
   console.log('[ADMIN BOOKING] Creating booking:', {
     glampId,
     glampName: glamp.name,
     customerEmail: customer.email,
+    guestName: guest.fullName,
     checkIn: checkIn.toISOString(),
     checkOut: checkOut.toISOString(),
     nights,
@@ -208,38 +278,64 @@ export const createAdminBooking = async (bookingData) => {
     totalAmountCents,
   });
 
-  // Create booking
-  const booking = await prisma.booking.create({
-    data: {
-      customerId: customer.id,
-      customerName: customer.name,
-      glampId,
-      glampName: glamp.name,
-      checkInDate: checkIn,
-      checkOutDate: checkOut,
-      guests: totalGuests,
-      totalAmount: totalAmountCents,
-      status: paymentStatus === 'PAID' ? 'CONFIRMED' : 'PENDING',
-    },
-    include: {
-      customer: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
+  // Create booking with explicit error handling
+  // NOTE: We use the guest name from the form (not DB customer name)
+  // because the booking should reflect who is actually staying
+  let booking;
+  try {
+    booking = await prisma.booking.create({
+      data: {
+        customerId: customer.id,
+        customerName: guest.fullName.trim(), // Use name from booking form
+        glampId,
+        glampName: glamp.name,
+        checkInDate: checkIn,
+        checkOutDate: checkOut,
+        guests: totalGuests,
+        totalAmount: totalAmountCents,
+        status: paymentStatus === 'PAID' ? 'CONFIRMED' : 'PENDING',
+      },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        glamp: {
+          select: {
+            id: true,
+            name: true,
+            pricePerNight: true,
+          },
         },
       },
-      glamp: {
-        select: {
-          id: true,
-          name: true,
-          pricePerNight: true,
-        },
-      },
-    },
-  });
+    });
 
-  console.log('[ADMIN BOOKING] Booking created successfully:', booking.id);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[DEBUG] ✅ Booking created successfully in DB:', {
+        id: booking.id,
+        status: booking.status,
+        customerId: booking.customerId,
+        customerName: booking.customerName,
+        createdAt: booking.createdAt,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    console.log('[ADMIN BOOKING] ✅ Booking created successfully:', booking.id);
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[DEBUG] ❌ Error creating booking in database:', error);
+      console.error('[DEBUG] Error details:', {
+        code: error.code,
+        meta: error.meta,
+        message: error.message
+      });
+    }
+    throw error;
+  }
 
   // Return booking with computed totals
   return {
