@@ -35,6 +35,27 @@ export const getAllGlamps = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Get all glamps - Admin version (includes test glamps)
+ * @route GET /api/glamps/admin/all
+ * @access ADMIN, SUPER_ADMIN
+ */
+export const getAllGlampsAdmin = asyncHandler(async (req, res) => {
+  const { status, includeTest = 'true' } = req.query;
+  
+  const filters = { 
+    status,
+    includeTest: includeTest !== 'false'
+  };
+  const glamps = await glampService.getAllGlampsAdmin(filters);
+
+  return res.status(200).json({
+    success: true,
+    count: glamps.length,
+    data: glamps,
+  });
+});
+
+/**
  * Get glamp by ID
  * @route GET /api/glamps/:id
  * @access Public

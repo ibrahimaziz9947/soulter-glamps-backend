@@ -138,6 +138,8 @@ model Glamp {
   status        GlampStatus @default(ACTIVE)
   features      String[]    @default([]) // List of features (e.g., ["WiFi", "Pool"])
   amenities     String[]    @default([]) // List of amenities (e.g., ["
+  imageUrl      String? // URL or path to glamp image (e.g., "/images/glamps/glamp1.jpg")
+  isTest        Boolean     @default(false) // If true, hidden from customer site (admin only)
 
   // Relations
   bookings Booking[] // All bookings for this glamp
@@ -146,6 +148,7 @@ model Glamp {
   updatedAt DateTime @updatedAt
 
   @@index([status])
+  @@index([isTest])
 }
 
 // ============================================

@@ -22,6 +22,7 @@ const isValidUUID = (id) => {
  *   status?: "ACTIVE"|"INACTIVE",
  *   features?: string[],
  *   amenities?: string[],
+ *   imageUrl?: string,  // URL or path to glamp image
  *   saveAsDraft?: boolean
  * }
  * 
@@ -39,6 +40,8 @@ export const createGlamp = async (glampData) => {
     status, 
     features = [], 
     amenities = [],
+    imageUrl,           // Optional image URL
+    isTest = false,     // Mark as test glamp (hidden from customers)
     saveAsDraft = false
   } = glampData;
 
@@ -75,7 +78,9 @@ export const createGlamp = async (glampData) => {
       maxGuests: parseInt(guestCapacity),
       status: glampStatus,
       features,
-      amenities
+      amenities,
+      imageUrl: imageUrl || null,
+      isTest: Boolean(isTest)
     },
   });
 
@@ -90,16 +95,57 @@ export const createGlamp = async (glampData) => {
 };
 
 /**
- * Get all glamps
- * @access Public
+ * Get all glamps - Public version (customer-facing site)
+ * @access Public (customers)
+ * 
+ * Returns ONLY:
+ * - ACTIVE glamps
+ * - Non-test glamps (isTest = false)
+ * 
+ * Sorted by name ASC for stable ordering
  */
 export const getAllGlamps = async (filters = {}) => {
-  const { status } = filters;
+  const where = {
+    status: 'ACTIVE',  // MUST be ACTIVE for public site
+    isTest: false,     // Hide test glamps from public
+  };
+
+  const glamps = await prisma.glamp.findMany({
+    where,
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      pricePerNight: true,
+      maxGuests: true,
+      imageUrl: true,
+      features: true,
+      amenities: true,
+      status: true,
+      createdAt: true,
+    },
+    orderBy: { name: 'asc' },  // Stable alphabetical ordering
+  });
+
+  return glamps;
+};
+
+/**
+ * Get all glamps - Admin version (includes test glamps)
+ * @access ADMIN, SUPER_ADMIN
+ */
+export const getAllGlampsAdmin = async (filters = {}) => {
+  const { status, includeTest = true } = filters;
 
   const where = {};
 
   if (status) {
     where.status = status;
+  }
+
+  // Admin can filter by isTest if needed
+  if (!includeTest) {
+    where.isTest = false;
   }
 
   const glamps = await prisma.glamp.findMany({
@@ -167,6 +213,8 @@ export const updateGlamp = async (glampId, updates) => {
   if (updates.pricePerNight !== undefined) updateData.pricePerNight = parseInt(updates.pricePerNight);
   if (updates.maxGuests !== undefined) updateData.maxGuests = parseInt(updates.maxGuests);
   if (updates.status !== undefined) updateData.status = updates.status;
+  if (updates.imageUrl !== undefined) updateData.imageUrl = updates.imageUrl || null;
+  if (updates.isTest !== undefined) updateData.isTest = Boolean(updates.isTest);
 
   const updatedGlamp = await prisma.glamp.update({
     where: { id: glampId },
