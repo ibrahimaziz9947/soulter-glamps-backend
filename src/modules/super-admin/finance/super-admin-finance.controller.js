@@ -7,7 +7,6 @@
 
 import { asyncHandler } from '../../../utils/errors.js';
 import { parseDateRange } from '../../../utils/dateRange.js';
-import * as profitLossService from '../../finance/profitLoss/profitLoss.service.js';
 import * as statementsService from '../../finance/statements/statements.service.js';
 import * as payablesService from '../../finance/payables/payables.service.js';
 import prisma from '../../../config/prisma.js';
@@ -22,9 +21,13 @@ import prisma from '../../../config/prisma.js';
  * - to: End date (YYYY-MM-DD or ISO datetime, optional; default: now)
  * 
  * Reuses existing services:
- * - profitLoss service for revenue/expense/profit
- * - statements service for ledger entries
+ * - statements service for ledger entries and totals
  * - payables service for open payables
+ * 
+ * Returns:
+ * - totals: { totalRevenueCents, totalExpensesCents, netProfitCents, currency }
+ * - openPayables: { amountCents, count }
+ * - recentLedgerEntries: Latest 10 ledger entries with full details
  */
 export const getFinancialSummary = asyncHandler(async (req, res) => {
   const { from, to } = req.query;
@@ -32,18 +35,10 @@ export const getFinancialSummary = asyncHandler(async (req, res) => {
   // Parse date range (defaults to last 30 days, inclusive end-of-day)
   const dateRange = parseDateRange(from, to, 30);
 
-  // ============================================================================
-  // 1. PROFIT & LOSS: Reuse existing service
-  // ============================================================================
-  const profitLossData = await profitLossService.computeProfitAndLoss({
-    from: dateRange.fromISO,
-    to: dateRange.toISO,
-    includeBreakdown: false, // We only need totals for summary
-    expenseMode: 'approvedOnly', // Only approved expenses
-  });
+  console.log('[Finance Summary] Date range:', dateRange);
 
   // ============================================================================
-  // 2. LEDGER: Reuse existing statements service for latest entries
+  // 1. LEDGER: Fetch statements for totals AND recent entries
   // ============================================================================
   const ledgerData = await statementsService.getStatements({
     from: dateRange.fromISO,
@@ -56,29 +51,52 @@ export const getFinancialSummary = asyncHandler(async (req, res) => {
     includePurchases: true,
   });
 
-  // DEBUG: Verify response structure (remove after production verification)
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('[Finance Summary] Ledger response keys:', Object.keys(ledgerData));
-    console.log('[Finance Summary] Ledger items exist:', Boolean(ledgerData.items));
-    console.log('[Finance Summary] Ledger items length:', ledgerData.items?.length || 0);
-  }
+  console.log('[Finance Summary] Ledger totals:', ledgerData.totals);
+  console.log('[Finance Summary] Ledger items count:', ledgerData.items?.length || 0);
 
-  // Safe access to items array (statements service returns { items, pagination, totals })
-  const ledgerItems = ledgerData.items || [];
+  // Safe access to items array (defensive coding)
+  const ledgerItems = Array.isArray(ledgerData.items) ? ledgerData.items : [];
   
-  // Map ledger entries to simplified format
-  const latestEntries = ledgerItems.map(entry => ({
-    id: entry.id,
-    date: entry.date,
-    type: entry.type,
-    description: entry.description,
-    amountCents: entry.amountCents,
-    direction: entry.direction,
-    reference: entry.referenceId || null,
-  }));
+  // Extract totals from statements service
+  // totalInCents = sum of all INCOME (positive amounts)
+  // totalOutCents = sum of all EXPENSE + PURCHASE (negative amounts, stored as negative)
+  // netCents = totalInCents + totalOutCents
+  const totalRevenueCents = ledgerData.totals?.totalInCents || 0;
+  const totalOutCents = ledgerData.totals?.totalOutCents || 0;
+  
+  // Convert totalOutCents to positive (it's stored as negative)
+  const totalExpensesCents = Math.abs(totalOutCents);
+  const netProfitCents = ledgerData.totals?.netCents || 0;
+
+  // Map ledger entries to frontend format with all needed fields
+  const recentLedgerEntries = ledgerItems.map(entry => {
+    // Determine categoryLabel based on type
+    let categoryLabel = 'N/A';
+    if (entry.type === 'INCOME') {
+      categoryLabel = entry.category || 'Income';
+    } else if (entry.type === 'PURCHASE') {
+      categoryLabel = entry.counterparty || entry.category || 'Purchases';
+    } else if (entry.type === 'EXPENSE') {
+      categoryLabel = entry.category || 'Expense';
+    }
+
+    // Determine description (prefer title, fallback to category/counterparty)
+    const description = entry.title || entry.category || entry.counterparty || '';
+
+    return {
+      id: entry.id,
+      date: entry.date,
+      type: entry.type,
+      categoryLabel,
+      description,
+      status: entry.status || 'CONFIRMED',
+      currency: entry.currency || 'PKR',
+      amountCents: entry.amountCents || 0, // Already absolute value from service
+    };
+  });
 
   // ============================================================================
-  // 3. PAYABLES: Compute open payables (UNPAID + PARTIAL)
+  // 2. PAYABLES: Compute open payables (UNPAID + PARTIAL)
   // ============================================================================
   const payablesData = await payablesService.listPayables({
     page: 1,
@@ -86,15 +104,10 @@ export const getFinancialSummary = asyncHandler(async (req, res) => {
     // No status filter = gets all statuses, then we filter below
   });
 
-  // DEBUG: Verify response structure (remove after production verification)
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('[Finance Summary] Payables response keys:', Object.keys(payablesData));
-    console.log('[Finance Summary] Payables items exist:', Boolean(payablesData.items));
-    console.log('[Finance Summary] Payables items length:', payablesData.items?.length || 0);
-  }
+  console.log('[Finance Summary] Payables count:', payablesData.items?.length || 0);
 
-  // Safe access to items array (payables service returns { items, total, page, pageSize, totalPages })
-  const payablesItems = payablesData.items || [];
+  // Safe access to items array (defensive coding)
+  const payablesItems = Array.isArray(payablesData.items) ? payablesData.items : [];
   
   // Filter for open payables (UNPAID or PARTIAL)
   const openPayables = payablesItems.filter(
@@ -107,12 +120,7 @@ export const getFinancialSummary = asyncHandler(async (req, res) => {
     0
   );
 
-  // ============================================================================
-  // 4. RECEIVABLES: Optional - set to 0 if not supported
-  // ============================================================================
-  // Note: Current system doesn't track receivables separately
-  // Income is recorded when received, not when invoiced
-  // If you add invoicing system later, compute receivables here
+  console.log('[Finance Summary] Open payables:', { count: openPayablesCount, amountCents: openPayablesAmountCents });
 
   // ============================================================================
   // ASSEMBLE RESPONSE
@@ -120,34 +128,17 @@ export const getFinancialSummary = asyncHandler(async (req, res) => {
   return res.status(200).json({
     success: true,
     data: {
-      range: {
-        from: dateRange.fromISO,
-        to: dateRange.toISO,
+      totals: {
+        totalRevenueCents,
+        totalExpensesCents,
+        netProfitCents,
+        currency: 'PKR',
       },
-      profitLoss: {
-        revenueCents: profitLossData.totalIncomeCents || 0,
-        expenseCents: profitLossData.totalExpensesCents || 0,
-        profitCents: profitLossData.netProfitCents || 0,
+      openPayables: {
+        amountCents: openPayablesAmountCents,
+        count: openPayablesCount,
       },
-      ledger: {
-        totalEntries: ledgerData.pagination?.totalItems || 0,
-        latestEntries,
-        totals: ledgerData.totals || { totalInCents: 0, totalOutCents: 0, netCents: 0 },
-      },
-      payables: {
-        openCount: openPayablesCount,
-        openAmountCents: openPayablesAmountCents,
-      },
-      receivables: {
-        count: 0,
-        amountCents: 0,
-        // Note: Receivables not supported in current system
-        // Income is recorded when received, not when invoiced
-      },
-      systemNotes: [
-        // Optional: Add system-wide financial notes here
-        // Example: "End-of-month processing in progress"
-      ],
+      recentLedgerEntries,
     },
   });
 });
