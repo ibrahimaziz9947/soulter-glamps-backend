@@ -46,16 +46,33 @@ const findOrCreateCustomer = async (name, email) => {
 /**
  * Check availability for a glamp in a given date range
  * 
- * Date overlap logic:
- * Two bookings conflict if: (existing.checkIn < newCheckOut) AND (existing.checkOut > newCheckIn)
+ * Date Semantics:
+ * - checkIn: Guest arrives on this date (inclusive, start-of-day)
+ * - checkOut: Guest leaves on this date (exclusive, start-of-day)
+ * - Example: checkIn=2026-01-25, checkOut=2026-01-27 means 2 nights (25th and 26th)
+ * 
+ * Date Normalization:
+ * - All dates normalized to start-of-day UTC (00:00:00.000Z)
+ * - Ensures consistent overlap detection regardless of time components
+ * 
+ * Overlap Logic:
+ * - Two bookings conflict if: (existing.checkIn < newCheckOut) AND (existing.checkOut > newCheckIn)
+ * - This handles all overlap scenarios: partial, complete, and nested overlaps
  * 
  * @param {string} glampId - Glamp ID to check
- * @param {Date} checkIn - Check-in date
- * @param {Date} checkOut - Check-out date
+ * @param {Date} checkIn - Check-in date (will be normalized to start-of-day UTC)
+ * @param {Date} checkOut - Check-out date (will be normalized to start-of-day UTC, exclusive)
  * @param {string} [excludeBookingId] - Optional: booking ID to exclude from conflict check (for updates)
  * @returns {Promise<{available: boolean, conflictingCount: number, conflicts: Array}>}
  */
 export const checkAvailability = async (glampId, checkIn, checkOut, excludeBookingId = null) => {
+  // Normalize dates to start-of-day (UTC midnight) for consistent comparisons
+  const normalizeToStartOfDay = (date) => {
+    const normalized = new Date(date);
+    normalized.setUTCHours(0, 0, 0, 0);
+    return normalized;
+  };
+
   // Validate inputs
   if (!isValidUUID(glampId)) {
     throw new ValidationError('Invalid glamp ID format');
@@ -72,6 +89,10 @@ export const checkAvailability = async (glampId, checkIn, checkOut, excludeBooki
   if (checkOut <= checkIn) {
     throw new ValidationError('Check-out date must be after check-in date (at least 1 night)');
   }
+
+  // Normalize dates to start-of-day for consistent overlap detection
+  const normalizedCheckIn = normalizeToStartOfDay(checkIn);
+  const normalizedCheckOut = normalizeToStartOfDay(checkOut);
 
   // Verify glamp exists
   const glamp = await prisma.glamp.findUnique({
@@ -91,8 +112,8 @@ export const checkAvailability = async (glampId, checkIn, checkOut, excludeBooki
       in: ['CONFIRMED', 'PENDING'], // Only count active bookings
     },
     AND: [
-      { checkInDate: { lt: checkOut } },
-      { checkOutDate: { gt: checkIn } },
+      { checkInDate: { lt: normalizedCheckOut } },
+      { checkOutDate: { gt: normalizedCheckIn } },
     ],
   };
 
@@ -118,11 +139,17 @@ export const checkAvailability = async (glampId, checkIn, checkOut, excludeBooki
     available,
     conflictingCount: conflictingBookings.length,
     conflicts: conflictingBookings.map(b => ({
-      id: b.id,
-      checkIn: b.checkInDate.toISOString(),
-      checkOut: b.checkOutDate.toISOString(),
+      bookingId: b.id,
+      checkIn: b.checkInDate.toISOString().split('T')[0], // YYYY-MM-DD format
+      checkOut: b.checkOutDate.toISOString().split('T')[0], // YYYY-MM-DD format
       status: b.status,
     })),
+    // Additional debugging info
+    queriedRange: {
+      checkIn: normalizedCheckIn.toISOString().split('T')[0],
+      checkOut: normalizedCheckOut.toISOString().split('T')[0],
+      nights: Math.ceil((normalizedCheckOut - normalizedCheckIn) / (1000 * 60 * 60 * 24)),
+    },
   };
 };
 

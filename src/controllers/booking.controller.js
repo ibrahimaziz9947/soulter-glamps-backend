@@ -93,6 +93,23 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
 
 /**
  * Check availability for a glamp
+ * 
+ * Date Semantics:
+ * - checkIn: Guest arrival date (inclusive)
+ * - checkOut: Guest departure date (exclusive)
+ * - Both dates normalized to start-of-day UTC for consistent comparisons
+ * 
+ * Response Format:
+ * {
+ *   success: true,
+ *   data: {
+ *     available: boolean,
+ *     conflictingCount: number,
+ *     conflicts: [{ bookingId, checkIn, checkOut, status }],
+ *     queriedRange: { checkIn, checkOut, nights }
+ *   }
+ * }
+ * 
  * @route GET /api/bookings/availability
  * @access Public (authenticated users: admin, agent, customer)
  */
@@ -107,7 +124,7 @@ export const checkAvailability = asyncHandler(async (req, res) => {
     });
   }
 
-  // Parse dates
+  // Parse dates (will be normalized to start-of-day in service layer)
   const checkInDate = new Date(checkIn);
   const checkOutDate = new Date(checkOut);
 
