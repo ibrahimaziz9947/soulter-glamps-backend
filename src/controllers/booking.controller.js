@@ -90,3 +90,44 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
     data: booking,
   });
 });
+
+/**
+ * Check availability for a glamp
+ * @route GET /api/bookings/availability
+ * @access Public (authenticated users: admin, agent, customer)
+ */
+export const checkAvailability = asyncHandler(async (req, res) => {
+  const { glampId, checkIn, checkOut } = req.query;
+
+  // Validate required parameters
+  if (!glampId || !checkIn || !checkOut) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required parameters: glampId, checkIn, and checkOut are required',
+    });
+  }
+
+  // Parse dates
+  const checkInDate = new Date(checkIn);
+  const checkOutDate = new Date(checkOut);
+
+  // Validate date format
+  if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid date format. Please use YYYY-MM-DD format',
+    });
+  }
+
+  // Call service to check availability
+  const availabilityData = await bookingService.checkAvailability(
+    glampId,
+    checkInDate,
+    checkOutDate
+  );
+
+  return res.status(200).json({
+    success: true,
+    data: availabilityData,
+  });
+});

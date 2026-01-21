@@ -403,6 +403,8 @@ export async function getAgentBookingById(agentId, bookingId) {
 
 
 import { PrismaClient } from '@prisma/client'
+import { checkAvailability } from './booking.service.js'
+import { BookingConflictError } from '../utils/errors.js'
 
 const prisma = new PrismaClient()
 
@@ -482,36 +484,80 @@ export async function createBookingAsAgent(agentId, payload) {
 
   const totalAmount = nights * glamp.pricePerNight
 
-  return prisma.booking.create({
-    data: {
-      customerName,
-      checkInDate: checkIn,
-      checkOutDate: checkOut,
-      guests,
-      status: 'PENDING',
-      totalAmount,
-
-      agent: {
-        connect: { id: agentId },
+  // TRANSACTION: Re-check availability and create booking atomically
+  // This prevents race conditions where two requests pass the initial check
+  return prisma.$transaction(async (tx) => {
+    // Re-check conflicts inside transaction to prevent race conditions
+    const conflicts = await tx.booking.findMany({
+      where: {
+        glampId,
+        status: {
+          in: ['CONFIRMED', 'PENDING'],
+        },
+        AND: [
+          { checkInDate: { lt: checkOut } },
+          { checkOutDate: { gt: checkIn } },
+        ],
       },
-
-      glamp: {
-        connect: { id: glampId },
+      select: {
+        id: true,
+        checkInDate: true,
+        checkOutDate: true,
+        status: true,
       },
+    })
 
-      customer: {
-        connectOrCreate: {
-          where: { email: customerEmail },
-          create: {
-            email: customerEmail,
-            name: customerName,
-            role: 'CUSTOMER',
-            active: true,
-            password: 'AGENT_CREATED',
+    // If conflicts found, throw error (transaction will rollback)
+    if (conflicts.length > 0) {
+      console.log('❌ [AGENT] Race condition detected - conflict found in transaction:', {
+        glampId,
+        conflictCount: conflicts.length,
+      })
+      
+      throw new BookingConflictError({
+        available: false,
+        conflictingCount: conflicts.length,
+        conflicts: conflicts.map(b => ({
+          id: b.id,
+          checkIn: b.checkInDate.toISOString(),
+          checkOut: b.checkOutDate.toISOString(),
+          status: b.status,
+        })),
+      })
+    }
+
+    // No conflicts - create booking
+    return tx.booking.create({
+      data: {
+        customerName,
+        checkInDate: checkIn,
+        checkOutDate: checkOut,
+        guests,
+        status: 'PENDING',
+        totalAmount,
+
+        agent: {
+          connect: { id: agentId },
+        },
+
+        glamp: {
+          connect: { id: glampId },
+        },
+
+        customer: {
+          connectOrCreate: {
+            where: { email: customerEmail },
+            create: {
+              email: customerEmail,
+              name: customerName,
+              role: 'CUSTOMER',
+              active: true,
+              password: 'AGENT_CREATED',
+            },
           },
         },
       },
-    },
+    })
   })
 }
 

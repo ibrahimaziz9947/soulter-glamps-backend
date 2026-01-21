@@ -234,6 +234,15 @@ app.use((err, req, res, next) => {
     method: req.method,
   });
 
+  // Handle BookingConflictError with specific format
+  if (err.name === 'BookingConflictError') {
+    return res.status(409).json({
+      success: false,
+      message: err.message,
+      data: err.details || { available: false, conflictingCount: 0 },
+    });
+  }
+
   // Handle operational errors (known errors)
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({

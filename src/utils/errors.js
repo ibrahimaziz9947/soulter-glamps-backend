@@ -55,9 +55,22 @@ export class ForbiddenError extends AppError {
  * Error for conflicts (e.g., duplicate records)
  */
 export class ConflictError extends AppError {
-  constructor(message = 'Resource already exists') {
-    super(message, 409);
+  constructor(message = 'Resource already exists', details = null) {
+    super(message, 409, details);
     this.name = 'ConflictError';
+  }
+}
+
+/**
+ * Error for booking conflicts (double-booking)
+ */
+export class BookingConflictError extends ConflictError {
+  constructor(availabilityData) {
+    super(
+      'Glamp is not available for selected dates',
+      availabilityData
+    );
+    this.name = 'BookingConflictError';
   }
 }
 

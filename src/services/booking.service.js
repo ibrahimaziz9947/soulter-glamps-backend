@@ -1,5 +1,5 @@
 import prisma from '../config/prisma.js';
-import { NotFoundError, ValidationError, ForbiddenError } from '../utils/errors.js';
+import { NotFoundError, ValidationError, ForbiddenError, BookingConflictError } from '../utils/errors.js';
 import { createCommissionForBooking } from './commission.service.js';
 import { hashPassword } from '../utils/hash.js';
 
@@ -41,6 +41,89 @@ const findOrCreateCustomer = async (name, email) => {
   });
 
   return customer;
+};
+
+/**
+ * Check availability for a glamp in a given date range
+ * 
+ * Date overlap logic:
+ * Two bookings conflict if: (existing.checkIn < newCheckOut) AND (existing.checkOut > newCheckIn)
+ * 
+ * @param {string} glampId - Glamp ID to check
+ * @param {Date} checkIn - Check-in date
+ * @param {Date} checkOut - Check-out date
+ * @param {string} [excludeBookingId] - Optional: booking ID to exclude from conflict check (for updates)
+ * @returns {Promise<{available: boolean, conflictingCount: number, conflicts: Array}>}
+ */
+export const checkAvailability = async (glampId, checkIn, checkOut, excludeBookingId = null) => {
+  // Validate inputs
+  if (!isValidUUID(glampId)) {
+    throw new ValidationError('Invalid glamp ID format');
+  }
+
+  if (!(checkIn instanceof Date) || isNaN(checkIn.getTime())) {
+    throw new ValidationError('Invalid check-in date');
+  }
+
+  if (!(checkOut instanceof Date) || isNaN(checkOut.getTime())) {
+    throw new ValidationError('Invalid check-out date');
+  }
+
+  if (checkOut <= checkIn) {
+    throw new ValidationError('Check-out date must be after check-in date (at least 1 night)');
+  }
+
+  // Verify glamp exists
+  const glamp = await prisma.glamp.findUnique({
+    where: { id: glampId },
+  });
+
+  if (!glamp) {
+    throw new NotFoundError('Glamp not found');
+  }
+
+  // Find conflicting bookings
+  // A booking conflicts if date ranges overlap:
+  // overlap if (existing.checkIn < newCheckOut) AND (existing.checkOut > newCheckIn)
+  const where = {
+    glampId,
+    status: {
+      in: ['CONFIRMED', 'PENDING'], // Only count active bookings
+    },
+    AND: [
+      { checkInDate: { lt: checkOut } },
+      { checkOutDate: { gt: checkIn } },
+    ],
+  };
+
+  // Exclude a specific booking (useful for updates)
+  if (excludeBookingId && isValidUUID(excludeBookingId)) {
+    where.id = { not: excludeBookingId };
+  }
+
+  const conflictingBookings = await prisma.booking.findMany({
+    where,
+    select: {
+      id: true,
+      checkInDate: true,
+      checkOutDate: true,
+      status: true,
+    },
+    orderBy: { checkInDate: 'asc' },
+  });
+
+  const available = conflictingBookings.length === 0;
+
+  return {
+    available,
+    conflictingCount: conflictingBookings.length,
+    conflicts: conflictingBookings.map(b => ({
+      id: b.id,
+      checkIn: b.checkInDate.toISOString(),
+      checkOut: b.checkOutDate.toISOString(),
+      status: b.status,
+    })),
+  };
 };
 
 /**
@@ -163,43 +246,86 @@ export const createBooking = async (bookingData) => {
     totalAmount: `$${totalAmount / 100}`,
   });
 
-  // Create booking
-  const booking = await prisma.booking.create({
-    data: {
-      customerId: customer.id,
-      customerName: customer.name, // Snapshot field
-      agentId: agentId || null,
-      glampId,
-      glampName: glamp.name, // Snapshot field
-      checkInDate: checkIn,
-      checkOutDate: checkOut,
-      guests: guestCount || 1, // Store guest count
-      totalAmount,
-      status: 'PENDING',
-    },
-    include: {
-      customer: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
+  // TRANSACTION: Re-check availability and create booking atomically
+  // This prevents race conditions where two requests pass the initial check
+  const booking = await prisma.$transaction(async (tx) => {
+    // Re-check conflicts inside transaction to prevent race conditions
+    const conflicts = await tx.booking.findMany({
+      where: {
+        glampId,
+        status: {
+          in: ['CONFIRMED', 'PENDING'],
+        },
+        AND: [
+          { checkInDate: { lt: checkOut } },
+          { checkOutDate: { gt: checkIn } },
+        ],
+      },
+      select: {
+        id: true,
+        checkInDate: true,
+        checkOutDate: true,
+        status: true,
+      },
+    });
+
+    // If conflicts found, throw error (transaction will rollback)
+    if (conflicts.length > 0) {
+      console.log('❌ Race condition detected - conflict found in transaction:', {
+        glampId,
+        conflictCount: conflicts.length,
+      });
+      
+      throw new BookingConflictError({
+        available: false,
+        conflictingCount: conflicts.length,
+        conflicts: conflicts.map(b => ({
+          id: b.id,
+          checkIn: b.checkInDate.toISOString(),
+          checkOut: b.checkOutDate.toISOString(),
+          status: b.status,
+        })),
+      });
+    }
+
+    // No conflicts - create booking
+    return tx.booking.create({
+      data: {
+        customerId: customer.id,
+        customerName: customer.name, // Snapshot field
+        agentId: agentId || null,
+        glampId,
+        glampName: glamp.name, // Snapshot field
+        checkInDate: checkIn,
+        checkOutDate: checkOut,
+        guests: guestCount || 1, // Store guest count
+        totalAmount,
+        status: 'PENDING',
+      },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        agent: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        glamp: {
+          select: {
+            id: true,
+            name: true,
+            pricePerNight: true,
+          },
         },
       },
-      agent: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
-      glamp: {
-        select: {
-          id: true,
-          name: true,
-          pricePerNight: true,
-        },
-      },
-    },
+    });
   });
 
   // Log successful booking creation

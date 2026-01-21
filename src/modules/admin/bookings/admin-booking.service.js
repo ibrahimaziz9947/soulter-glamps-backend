@@ -4,8 +4,9 @@
  */
 
 import prisma from '../../../config/prisma.js';
-import { ValidationError, NotFoundError } from '../../../utils/errors.js';
+import { ValidationError, NotFoundError, BookingConflictError } from '../../../utils/errors.js';
 import { hashPassword } from '../../../utils/hash.js';
+import { checkAvailability } from '../../../services/booking.service.js';
 
 /**
  * Validate UUID format
@@ -187,14 +188,6 @@ export const createAdminBooking = async (bookingData) => {
     throw new ValidationError(`This glamp can accommodate a maximum of ${glamp.maxGuests} guests`);
   }
 
-  // Check for overlapping CONFIRMED/COMPLETED bookings
-  const overlapping = await checkOverlappingBookings(glampId, checkIn, checkOut);
-  if (overlapping) {
-    throw new ValidationError(
-      `This glamp is already booked from ${overlapping.checkInDate.toISOString().split('T')[0]} to ${overlapping.checkOutDate.toISOString().split('T')[0]}`
-    );
-  }
-
   // Calculate total amount in cents
   // Base price: nights * pricePerNight
   let totalAmountCents = glamp.pricePerNight * nights;
@@ -252,20 +245,6 @@ export const createAdminBooking = async (bookingData) => {
     throw error;
   }
 
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('[DEBUG] About to create booking with data:', {
-      customerId: customer.id,
-      customerName: guest.fullName, // Use the name provided in the booking form, not DB customer name
-      glampId,
-      glampName: glamp.name,
-      checkInDate: checkIn.toISOString(),
-      checkOutDate: checkOut.toISOString(),
-      guests: totalGuests,
-      totalAmount: totalAmountCents,
-      status: paymentStatus === 'PAID' ? 'CONFIRMED' : 'PENDING',
-    });
-  }
-
   console.log('[ADMIN BOOKING] Creating booking:', {
     glampId,
     glampName: glamp.name,
@@ -278,39 +257,82 @@ export const createAdminBooking = async (bookingData) => {
     totalAmountCents,
   });
 
-  // Create booking with explicit error handling
-  // NOTE: We use the guest name from the form (not DB customer name)
-  // because the booking should reflect who is actually staying
+  // TRANSACTION: Re-check availability and create booking atomically
+  // This prevents race conditions where two requests pass the initial check
   let booking;
   try {
-    booking = await prisma.booking.create({
-      data: {
-        customerId: customer.id,
-        customerName: guest.fullName.trim(), // Use name from booking form
-        glampId,
-        glampName: glamp.name,
-        checkInDate: checkIn,
-        checkOutDate: checkOut,
-        guests: totalGuests,
-        totalAmount: totalAmountCents,
-        status: paymentStatus === 'PAID' ? 'CONFIRMED' : 'PENDING',
-      },
-      include: {
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+    booking = await prisma.$transaction(async (tx) => {
+      // Re-check conflicts inside transaction to prevent race conditions
+      const conflicts = await tx.booking.findMany({
+        where: {
+          glampId,
+          status: {
+            in: ['CONFIRMED', 'PENDING'],
+          },
+          AND: [
+            { checkInDate: { lt: checkOut } },
+            { checkOutDate: { gt: checkIn } },
+          ],
+        },
+        select: {
+          id: true,
+          checkInDate: true,
+          checkOutDate: true,
+          status: true,
+        },
+      });
+
+      // If conflicts found, throw error (transaction will rollback)
+      if (conflicts.length > 0) {
+        console.log('❌ [ADMIN] Race condition detected - conflict found in transaction:', {
+          glampId,
+          conflictCount: conflicts.length,
+        });
+        
+        throw new BookingConflictError({
+          available: false,
+          conflictingCount: conflicts.length,
+          conflicts: conflicts.map(b => ({
+            id: b.id,
+            checkIn: b.checkInDate.toISOString(),
+            checkOut: b.checkOutDate.toISOString(),
+            status: b.status,
+          })),
+        });
+      }
+
+      // No conflicts - create booking
+      // NOTE: We use the guest name from the form (not DB customer name)
+      // because the booking should reflect who is actually staying
+      return tx.booking.create({
+        data: {
+          customerId: customer.id,
+          customerName: guest.fullName.trim(), // Use name from booking form
+          glampId,
+          glampName: glamp.name,
+          checkInDate: checkIn,
+          checkOutDate: checkOut,
+          guests: totalGuests,
+          totalAmount: totalAmountCents,
+          status: paymentStatus === 'PAID' ? 'CONFIRMED' : 'PENDING',
+        },
+        include: {
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          glamp: {
+            select: {
+              id: true,
+              name: true,
+              pricePerNight: true,
+            },
           },
         },
-        glamp: {
-          select: {
-            id: true,
-            name: true,
-            pricePerNight: true,
-          },
-        },
-      },
+      });
     });
 
     if (process.env.NODE_ENV !== 'production') {
