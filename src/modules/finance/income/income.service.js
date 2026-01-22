@@ -136,8 +136,8 @@ export const listIncome = async (filters = {}) => {
     data: incomes,
     pagination: paginationMeta,
     summary: {
-      total: Math.round(totalAmount / 100), // Whole PKR
-      totalAmount, // DEPRECATED: Keep for legacy (raw cents value)
+      total: totalAmount, // Raw DB value
+      totalAmount, // Same value, alt field name
       count: total,
     },
   };
@@ -614,8 +614,8 @@ export const incomeSummary = async (filters = {}) => {
     const amountCents = item._sum.amount || 0;
     acc[item.source] = {
       count: item._count.id,
-      total: Math.round(amountCents / 100), // Whole PKR
-      totalAmount: amountCents, // DEPRECATED: Legacy field (cents)
+      total: amountCents, // Raw DB value
+      totalAmount: amountCents, // Same value, alt field name
     };
     return acc;
   }, {});
@@ -632,16 +632,17 @@ export const incomeSummary = async (filters = {}) => {
     const amountCents = item._sum.amount || 0;
     acc[item.status] = {
       count: item._count.id,
-      total: Math.round(amountCents / 100), // Whole PKR
-      totalAmount: amountCents, // DEPRECATED: Legacy field (cents)
+      total: amountCents, // Raw DB value
+      totalAmount: amountCents, // Same value, alt field name
     };
     return acc;
   }, {});
 
   return {
     totalCount,
-    total: Math.round(totalAmountCents / 100), // Whole PKR
-    totalAmountCents, // DEPRECATED: Legacy field
+    total: totalAmountCents, // Raw DB value
+    totalAmount: totalAmountCents, // Same value, alt field name
+    totalAmountCents, // Legacy field name
     bySource,
     byStatus,
   };

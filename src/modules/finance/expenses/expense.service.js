@@ -171,8 +171,9 @@ export const getExpenses = async (filters = {}) => {
     data: expenses,
     pagination: paginationMeta,
     summary: {
-      total: Math.round(totalAmount / 100), // Whole PKR
-      totalAmountCents: totalAmount, // DEPRECATED: Legacy field
+      total: totalAmount, // Raw DB value
+      totalAmount, // Same value, alt field name
+      totalAmountCents: totalAmount, // Legacy field name
       count: total,
     },
   };

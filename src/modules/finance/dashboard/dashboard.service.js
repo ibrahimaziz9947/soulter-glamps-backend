@@ -154,15 +154,14 @@ export const getDashboardData = async (filters = {}) => {
   // ============================================
   // VERIFICATION: Extract values WITHOUT modification
   // ============================================
-  // Profit-loss returns: { summary: { totalIncome, totalExpenses (whole PKR), totalIncomeCents (legacy)... } }
-  // Use new fields (whole currency units), fall back to legacy cents fields
+  // Profit-loss returns raw DB values
   const profitLossSummary = profitLossData?.summary || {};
   
-  // Use new fields (whole PKR) if available, otherwise use legacy cents fields and convert
-  const totalIncome = profitLossSummary.totalIncome ?? Math.round((profitLossSummary.totalIncomeCents || 0) / 100);
-  const totalExpenses = profitLossSummary.totalExpenses ?? Math.round((profitLossSummary.totalExpensesCents || 0) / 100);
-  const totalPurchases = profitLossSummary.totalPurchases ?? Math.round((profitLossSummary.totalPurchasesCents || 0) / 100);
-  const netProfit = profitLossSummary.netProfit ?? Math.round((profitLossSummary.netProfitCents || 0) / 100);
+  // Use raw values from P&L (no conversion)
+  const totalIncome = profitLossSummary.totalIncome || profitLossSummary.totalIncomeCents || 0;
+  const totalExpenses = profitLossSummary.totalExpenses || profitLossSummary.totalExpensesCents || 0;
+  const totalPurchases = profitLossSummary.totalPurchases || profitLossSummary.totalPurchasesCents || 0;
+  const netProfit = profitLossSummary.netProfit || profitLossSummary.netProfitCents || 0;
 
   console.log('[Dashboard Service] Profit-Loss Response Structure:', {
     hasData: !!profitLossData,
@@ -170,7 +169,7 @@ export const getDashboardData = async (filters = {}) => {
     summaryKeys: profitLossData?.summary ? Object.keys(profitLossData.summary) : [],
   });
 
-  console.log('[Dashboard Service] Profit-Loss KPIs (whole PKR):', {
+  console.log('[Dashboard Service] Profit-Loss KPIs (raw DB values):', {
     totalIncome,
     totalExpenses,
     totalPurchases,
@@ -193,18 +192,18 @@ export const getDashboardData = async (filters = {}) => {
     return sum + outstanding;
   }, 0);
 
-  // Build structured payables KPIs (converted to whole PKR)
+  // Build structured payables KPIs (raw DB values)
   const pendingPayablesKPI = {
     count: pendingPayables.length,
-    amount: Math.round(pendingPayablesCents / 100), // Whole PKR
-    amountCents: pendingPayablesCents, // DEPRECATED: Legacy field
-    currency: normalizedCurrency || 'PKR', // Default to PKR if no currency filter
+    amount: pendingPayablesCents, // Raw DB value
+    amountCents: pendingPayablesCents, // Same value, alt field name
+    currency: normalizedCurrency || 'PKR',
   };
 
   const overduePayablesKPI = {
     count: overduePayables.length,
-    amount: Math.round(overduePayablesCents / 100), // Whole PKR
-    amountCents: overduePayablesCents, // DEPRECATED: Legacy field
+    amount: overduePayablesCents, // Raw DB value
+    amountCents: overduePayablesCents, // Same value, alt field name
     currency: normalizedCurrency || 'PKR',
   };
 
@@ -245,14 +244,14 @@ export const getDashboardData = async (filters = {}) => {
 
   console.log('[Dashboard Service] Net cash flow computed from statements:', netCashFlowCents, 'items:', statementsItems.length);
 
-  // Convert to whole PKR
-  const netCashFlow = Math.round(netCashFlowCents / 100);
+  // Use raw value
+  const netCashFlow = netCashFlowCents;
 
   // ============================================
   // INVENTORY VALUE (Placeholder for future)
   // ============================================
-  const inventoryValueCents = 0; // Return 0 for now if inventory module isn't real yet
-  const inventoryValue = 0; // Whole PKR
+  const inventoryValueCents = 0;
+  const inventoryValue = 0;
 
   // ============================================
   // RECENT TRANSACTIONS (Limited subset from SAME statements data)
@@ -266,11 +265,11 @@ export const getDashboardData = async (filters = {}) => {
       id: entry.id,
       date: entry.date,
       type: entry.type,
-      description: entry.title || entry.counterparty || 'Transaction', // Use title as description
-      amount: Math.round((entry.amountCents || 0) / 100), // Whole PKR
-      amountCents: entry.amountCents, // DEPRECATED: Legacy field
+      description: entry.title || entry.counterparty || 'Transaction',
+      amount: entry.amountCents, // Raw DB value
+      amountCents: entry.amountCents, // Same value, alt field name
       currency: entry.currency,
-      direction: entry.direction, // 'in' or 'out' from statements
+      direction: entry.direction,
       referenceId: entry.referenceId || null,
     }));
 
@@ -302,22 +301,22 @@ export const getDashboardData = async (filters = {}) => {
       to: toISO,
     },
     kpis: {
-      // New format: Whole currency units (PKR)
+      // Raw DB values (no conversion)
       totalIncome,
       totalExpenses,
-      totalPurchases, // Include purchases separately for transparency
+      totalPurchases,
       netProfit,
-      pendingPayables: pendingPayablesKPI, // Structured object with count, amount (PKR), currency
-      overduePayables: overduePayablesKPI, // Structured object with count, amount (PKR), currency
+      pendingPayables: pendingPayablesKPI,
+      overduePayables: overduePayablesKPI,
       netCashFlow,
       inventoryValue,
       currency: normalizedCurrency || 'PKR',
       
-      // DEPRECATED: Legacy fields for backward compatibility (remove in next major version)
-      totalIncomeCents: totalIncome * 100,
-      totalExpensesCents: totalExpenses * 100,
-      totalPurchasesCents: totalPurchases * 100,
-      netProfitCents: netProfit * 100,
+      // Legacy field names (same values for compatibility)
+      totalIncomeCents: totalIncome,
+      totalExpensesCents: totalExpenses,
+      totalPurchasesCents: totalPurchases,
+      netProfitCents: netProfit,
       pendingPayablesCents: pendingPayablesCents,
       overduePayablesCents: overduePayablesCents,
       netCashFlowCents,
@@ -326,7 +325,7 @@ export const getDashboardData = async (filters = {}) => {
     recentTransactions,
   };
 
-  // Final validation log - ensure KPIs are not all zero
+  // Final validation log
   console.log('[Dashboard Service] FINAL RESPONSE KPIs:', response.kpis);
   if (totalIncome === 0 && totalExpenses === 0 && netProfit === 0) {
     console.warn('[Dashboard Service] WARNING: All KPIs are zero - this may indicate data issue');

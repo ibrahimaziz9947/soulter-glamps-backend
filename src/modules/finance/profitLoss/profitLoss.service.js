@@ -228,8 +228,8 @@ export const computeProfitAndLoss = async (filters = {}) => {
   });
 
   // Build base response with debug metadata
-  // FIXED: Convert cents to whole currency units (PKR) for proper display
-  // DB stores in cents (smallest unit), but API returns whole currency units
+  // IMPORTANT: Return DB values as-is (no scaling)
+  // DB amounts are stored as integers - let frontend handle display formatting
   const result = {
     filters: {
       from: from || null,
@@ -238,14 +238,14 @@ export const computeProfitAndLoss = async (filters = {}) => {
       expenseMode: expenseMode,
     },
     summary: {
-      // New format: Whole currency units (PKR)
-      totalIncome: Math.round(totalIncomeCents / 100),
-      totalExpenses: Math.round(totalExpensesCents / 100),
-      totalPurchases: Math.round(totalPurchasesCents / 100),
-      netProfit: Math.round(netProfitCents / 100),
-      currency: currency || 'PKR', // Default to PKR
+      // Return raw DB values (no conversion)
+      totalIncome: totalIncomeCents,
+      totalExpenses: totalExpensesCents,
+      totalPurchases: totalPurchasesCents,
+      netProfit: netProfitCents,
+      currency: currency || 'PKR',
       
-      // DEPRECATED: Keep legacy fields for backward compatibility
+      // Legacy field names (same values for compatibility)
       totalIncomeCents,
       totalExpensesCents,
       totalPurchasesCents,
@@ -289,8 +289,8 @@ export const computeProfitAndLoss = async (filters = {}) => {
 
     const incomeBySource = incomeBySourceRaw.map((item) => ({
       source: item.source,
-      total: Math.round((item._sum.amount || 0) / 100), // Whole currency units
-      totalCents: item._sum.amount || 0, // DEPRECATED: Legacy field
+      total: item._sum.amount || 0, // Raw DB value
+      totalAmount: item._sum.amount || 0, // Alt field name
       count: item._count.id,
     }));
 
@@ -326,8 +326,8 @@ export const computeProfitAndLoss = async (filters = {}) => {
     const expensesByCategory = expensesByCategoryRaw.map((item) => ({
       categoryId: item.categoryId,
       categoryName: item.categoryId ? (categoryMap[item.categoryId] || 'Unknown') : 'Uncategorized',
-      total: Math.round((item._sum.amount || 0) / 100), // Whole currency units
-      totalCents: item._sum.amount || 0, // DEPRECATED: Legacy field
+      total: item._sum.amount || 0, // Raw DB value
+      totalAmount: item._sum.amount || 0, // Alt field name
       count: item._count.id,
     }));
 
@@ -341,8 +341,8 @@ export const computeProfitAndLoss = async (filters = {}) => {
 
     const purchasesByVendor = purchasesByVendorRaw.map((item) => ({
       vendorName: item.vendorName,
-      total: Math.round((item._sum.amount || 0) / 100), // Whole currency units
-      totalCents: item._sum.amount || 0, // DEPRECATED: Legacy field
+      total: item._sum.amount || 0, // Raw DB value
+      totalAmount: item._sum.amount || 0, // Alt field name
       count: item._count.id,
     }));
 

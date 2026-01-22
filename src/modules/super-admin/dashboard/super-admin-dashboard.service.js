@@ -149,28 +149,28 @@ export const getDashboardSummary = async (filters) => {
     const profitLoss = await computeProfitAndLoss(plFilters);
 
     // P&L service returns data in summary object
-    // NEW: Use whole PKR fields, fall back to cents fields
+    // Use raw DB values
     const summary = profitLoss.summary || {};
     
-    const totalIncome = summary.totalIncome ?? Math.round((summary.totalIncomeCents || 0) / 100);
-    const totalExpenses = summary.totalExpenses ?? Math.round((summary.totalExpensesCents || 0) / 100);
-    const totalPurchases = summary.totalPurchases ?? Math.round((summary.totalPurchasesCents || 0) / 100);
-    const netProfit = summary.netProfit ?? Math.round((summary.netProfitCents || 0) / 100);
+    const totalIncome = summary.totalIncome || summary.totalIncomeCents || 0;
+    const totalExpenses = summary.totalExpenses || summary.totalExpensesCents || 0;
+    const totalPurchases = summary.totalPurchases || summary.totalPurchasesCents || 0;
+    const netProfit = summary.netProfit || summary.netProfitCents || 0;
     
     financeSnapshot = {
-      // New format: Whole PKR
+      // Raw DB values (no conversion)
       totalIncome,
       totalExpenses: totalExpenses + totalPurchases, // Include purchases in expenses
       netProfit,
       currency: 'PKR',
       
-      // DEPRECATED: Legacy fields
-      totalIncomeCents: totalIncome * 100,
-      totalExpensesCents: (totalExpenses + totalPurchases) * 100,
-      netProfitCents: netProfit * 100,
+      // Legacy field names (same values)
+      totalIncomeCents: totalIncome,
+      totalExpensesCents: totalExpenses + totalPurchases,
+      netProfitCents: netProfit,
     };
 
-    console.log('[SUPER ADMIN DASHBOARD] financeSnapshot (from P&L service, whole PKR):', financeSnapshot);
+    console.log('[SUPER ADMIN DASHBOARD] financeSnapshot (raw DB values):', financeSnapshot);
     console.log('[SUPER ADMIN DASHBOARD] P&L summary breakdown:', {
       income: totalIncome,
       expenses: totalExpenses,
@@ -197,19 +197,19 @@ export const getDashboardSummary = async (filters) => {
     const profitCents = revenueCents - expenseCents;
 
     financeSnapshot = {
-      // New format: Whole PKR
-      totalIncome: Math.round(revenueCents / 100),
-      totalExpenses: Math.round(expenseCents / 100),
-      netProfit: Math.round(profitCents / 100),
+      // Raw DB values (no conversion)
+      totalIncome: revenueCents,
+      totalExpenses: expenseCents,
+      netProfit: profitCents,
       currency: 'PKR',
       
-      // DEPRECATED: Legacy fields
+      // Legacy field names (same values)
       totalIncomeCents: revenueCents,
       totalExpensesCents: expenseCents,
       netProfitCents: profitCents,
     };
 
-    console.log('[SUPER ADMIN DASHBOARD] financeSnapshot (fallback calculation, whole PKR):', financeSnapshot);
+    console.log('[SUPER ADMIN DASHBOARD] financeSnapshot (fallback, raw DB values):', financeSnapshot);
   }
 
   // ============================================
