@@ -228,6 +228,8 @@ export const computeProfitAndLoss = async (filters = {}) => {
   });
 
   // Build base response with debug metadata
+  // FIXED: Convert cents to whole currency units (PKR) for proper display
+  // DB stores in cents (smallest unit), but API returns whole currency units
   const result = {
     filters: {
       from: from || null,
@@ -236,6 +238,14 @@ export const computeProfitAndLoss = async (filters = {}) => {
       expenseMode: expenseMode,
     },
     summary: {
+      // New format: Whole currency units (PKR)
+      totalIncome: Math.round(totalIncomeCents / 100),
+      totalExpenses: Math.round(totalExpensesCents / 100),
+      totalPurchases: Math.round(totalPurchasesCents / 100),
+      netProfit: Math.round(netProfitCents / 100),
+      currency: currency || 'PKR', // Default to PKR
+      
+      // DEPRECATED: Keep legacy fields for backward compatibility
       totalIncomeCents,
       totalExpensesCents,
       totalPurchasesCents,
@@ -279,7 +289,8 @@ export const computeProfitAndLoss = async (filters = {}) => {
 
     const incomeBySource = incomeBySourceRaw.map((item) => ({
       source: item.source,
-      totalCents: item._sum.amount || 0,
+      total: Math.round((item._sum.amount || 0) / 100), // Whole currency units
+      totalCents: item._sum.amount || 0, // DEPRECATED: Legacy field
       count: item._count.id,
     }));
 
@@ -315,7 +326,8 @@ export const computeProfitAndLoss = async (filters = {}) => {
     const expensesByCategory = expensesByCategoryRaw.map((item) => ({
       categoryId: item.categoryId,
       categoryName: item.categoryId ? (categoryMap[item.categoryId] || 'Unknown') : 'Uncategorized',
-      totalCents: item._sum.amount || 0,
+      total: Math.round((item._sum.amount || 0) / 100), // Whole currency units
+      totalCents: item._sum.amount || 0, // DEPRECATED: Legacy field
       count: item._count.id,
     }));
 
@@ -329,7 +341,8 @@ export const computeProfitAndLoss = async (filters = {}) => {
 
     const purchasesByVendor = purchasesByVendorRaw.map((item) => ({
       vendorName: item.vendorName,
-      totalCents: item._sum.amount || 0,
+      total: Math.round((item._sum.amount || 0) / 100), // Whole currency units
+      totalCents: item._sum.amount || 0, // DEPRECATED: Legacy field
       count: item._count.id,
     }));
 

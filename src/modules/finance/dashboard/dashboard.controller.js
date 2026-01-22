@@ -127,8 +127,18 @@ const parseAndValidateDate = (dateString, fieldName) => {
  *       "totalIncomeCents": 250000,        // $2,500.00 total income
  *       "totalExpensesCents": 125000,      // $1,250.00 total expenses
  *       "netProfitCents": 125000,          // $1,250.00 net profit
- *       "pendingPayablesCents": 50000,     // $500.00 pending payables (UNPAID + PARTIAL)
- *       "overduePayablesCents": 10000,     // $100.00 overdue payables (past due date)
+ *       "pendingPayables": {               // Structured payables object
+ *         "count": 3,                      // 3 pending payables
+ *         "amountCents": 50000,            // $500.00 outstanding (sum of amount - paid)
+ *         "currency": "PKR"                // Currency (PKR or filtered currency)
+ *       },
+ *       "overduePayables": {               // Structured overdue payables object
+ *         "count": 1,                      // 1 overdue payable
+ *         "amountCents": 10000,            // $100.00 outstanding
+ *         "currency": "PKR"
+ *       },
+ *       "pendingPayablesCents": 50000,     // DEPRECATED: Legacy field for backward compatibility
+ *       "overduePayablesCents": 10000,     // DEPRECATED: Legacy field for backward compatibility
  *       "netCashFlowCents": 115000,        // $1,150.00 net cash movement (in - out)
  *       "inventoryValueCents": 0           // $0.00 (placeholder for future)
  *     },
@@ -184,6 +194,14 @@ const parseAndValidateDate = (dateString, fieldName) => {
  * const totalIncome = dashboardData.kpis.totalIncomeCents / 100;     // $2,500.00
  * const totalExpenses = dashboardData.kpis.totalExpensesCents / 100; // $1,250.00
  * const netProfit = dashboardData.kpis.netProfitCents / 100;         // $1,250.00
+ * 
+ * // Display pending payables (NEW structured format)
+ * const pendingPayables = dashboardData.kpis.pendingPayables;
+ * console.log(`${pendingPayables.count} pending payables totaling ${pendingPayables.currency} ${pendingPayables.amountCents / 100}`);
+ * // Output: "3 pending payables totaling PKR 500.00"
+ * 
+ * // Legacy format (DEPRECATED but still available)
+ * const pendingAmount = dashboardData.kpis.pendingPayablesCents / 100; // $500.00
  * 
  * // Display recent transactions
  * dashboardData.recentTransactions.forEach(tx => {

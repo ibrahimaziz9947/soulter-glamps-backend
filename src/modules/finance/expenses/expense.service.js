@@ -171,7 +171,8 @@ export const getExpenses = async (filters = {}) => {
     data: expenses,
     pagination: paginationMeta,
     summary: {
-      totalAmountCents: totalAmount, // Renamed to follow *Cents convention
+      total: Math.round(totalAmount / 100), // Whole PKR
+      totalAmountCents: totalAmount, // DEPRECATED: Legacy field
       count: total,
     },
   };

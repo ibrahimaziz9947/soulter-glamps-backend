@@ -87,23 +87,13 @@ export const getDashboardData = async (filters = {}) => {
   // ============================================
   // NOTE: Purchase model has: amount, paidAmountCents, paymentStatus
   // Outstanding = amount - paidAmountCents (we'll calculate this manually)
-  // IMPORTANT: Apply date range filter to match dashboard period
+  // IMPORTANT: Payables show ALL outstanding obligations (NOT date-filtered)
+  // This matches the expected behavior - show what we currently owe, regardless of when purchased
   const payablesBaseWhere = {
     deletedAt: null,
     status: { in: ['DRAFT', 'CONFIRMED'] }, // Exclude CANCELLED
     paymentStatus: { in: ['UNPAID', 'PARTIAL'] }, // Has outstanding balance
   };
-
-  // Apply date range filter (use purchaseDate field)
-  if (fromISO || toISO) {
-    payablesBaseWhere.purchaseDate = {};
-    if (fromISO) {
-      payablesBaseWhere.purchaseDate.gte = new Date(fromISO);
-    }
-    if (toISO) {
-      payablesBaseWhere.purchaseDate.lte = new Date(toISO);
-    }
-  }
 
   // Apply currency filter if provided (matches profit-loss/statements pattern)
   if (normalizedCurrency) {
@@ -164,13 +154,15 @@ export const getDashboardData = async (filters = {}) => {
   // ============================================
   // VERIFICATION: Extract values WITHOUT modification
   // ============================================
-  // Profit-loss returns: { summary: { totalIncomeCents, totalExpensesCents, ... } }
-  // Ensure we have valid numbers, default to 0 if missing
+  // Profit-loss returns: { summary: { totalIncome, totalExpenses (whole PKR), totalIncomeCents (legacy)... } }
+  // Use new fields (whole currency units), fall back to legacy cents fields
   const profitLossSummary = profitLossData?.summary || {};
-  const totalIncomeCents = profitLossSummary.totalIncomeCents || 0;
-  const totalExpensesCents = profitLossSummary.totalExpensesCents || 0;
-  const totalPurchasesCents = profitLossSummary.totalPurchasesCents || 0;
-  const netProfitCents = profitLossSummary.netProfitCents || 0;
+  
+  // Use new fields (whole PKR) if available, otherwise use legacy cents fields and convert
+  const totalIncome = profitLossSummary.totalIncome ?? Math.round((profitLossSummary.totalIncomeCents || 0) / 100);
+  const totalExpenses = profitLossSummary.totalExpenses ?? Math.round((profitLossSummary.totalExpensesCents || 0) / 100);
+  const totalPurchases = profitLossSummary.totalPurchases ?? Math.round((profitLossSummary.totalPurchasesCents || 0) / 100);
+  const netProfit = profitLossSummary.netProfit ?? Math.round((profitLossSummary.netProfitCents || 0) / 100);
 
   console.log('[Dashboard Service] Profit-Loss Response Structure:', {
     hasData: !!profitLossData,
@@ -178,11 +170,11 @@ export const getDashboardData = async (filters = {}) => {
     summaryKeys: profitLossData?.summary ? Object.keys(profitLossData.summary) : [],
   });
 
-  console.log('[Dashboard Service] Profit-Loss KPIs:', {
-    totalIncomeCents,
-    totalExpensesCents,
-    totalPurchasesCents,
-    netProfitCents,
+  console.log('[Dashboard Service] Profit-Loss KPIs (whole PKR):', {
+    totalIncome,
+    totalExpenses,
+    totalPurchases,
+    netProfit,
   });
 
   // ============================================
@@ -201,6 +193,21 @@ export const getDashboardData = async (filters = {}) => {
     return sum + outstanding;
   }, 0);
 
+  // Build structured payables KPIs (converted to whole PKR)
+  const pendingPayablesKPI = {
+    count: pendingPayables.length,
+    amount: Math.round(pendingPayablesCents / 100), // Whole PKR
+    amountCents: pendingPayablesCents, // DEPRECATED: Legacy field
+    currency: normalizedCurrency || 'PKR', // Default to PKR if no currency filter
+  };
+
+  const overduePayablesKPI = {
+    count: overduePayables.length,
+    amount: Math.round(overduePayablesCents / 100), // Whole PKR
+    amountCents: overduePayablesCents, // DEPRECATED: Legacy field
+    currency: normalizedCurrency || 'PKR',
+  };
+
   // Debug log to verify calculation
   console.log('[Dashboard Service] Payables Calculation Debug:', {
     pendingCount: pendingPayables.length,
@@ -212,10 +219,8 @@ export const getDashboardData = async (filters = {}) => {
   });
 
   console.log('[Dashboard Service] Payables KPIs:', {
-    pendingPayablesCents,
-    overduePayablesCents,
-    pendingCount: pendingPayables.length,
-    overdueCount: overduePayables.length,
+    pending: pendingPayablesKPI,
+    overdue: overduePayablesKPI,
   });
 
   // ============================================
@@ -240,10 +245,14 @@ export const getDashboardData = async (filters = {}) => {
 
   console.log('[Dashboard Service] Net cash flow computed from statements:', netCashFlowCents, 'items:', statementsItems.length);
 
+  // Convert to whole PKR
+  const netCashFlow = Math.round(netCashFlowCents / 100);
+
   // ============================================
   // INVENTORY VALUE (Placeholder for future)
   // ============================================
   const inventoryValueCents = 0; // Return 0 for now if inventory module isn't real yet
+  const inventoryValue = 0; // Whole PKR
 
   // ============================================
   // RECENT TRANSACTIONS (Limited subset from SAME statements data)
@@ -258,7 +267,8 @@ export const getDashboardData = async (filters = {}) => {
       date: entry.date,
       type: entry.type,
       description: entry.title || entry.counterparty || 'Transaction', // Use title as description
-      amountCents: entry.amountCents, // Already absolute from statements
+      amount: Math.round((entry.amountCents || 0) / 100), // Whole PKR
+      amountCents: entry.amountCents, // DEPRECATED: Legacy field
       currency: entry.currency,
       direction: entry.direction, // 'in' or 'out' from statements
       referenceId: entry.referenceId || null,
@@ -292,12 +302,24 @@ export const getDashboardData = async (filters = {}) => {
       to: toISO,
     },
     kpis: {
-      totalIncomeCents,
-      totalExpensesCents,
-      totalPurchasesCents, // Include purchases separately for transparency
-      netProfitCents,
-      pendingPayablesCents,
-      overduePayablesCents,
+      // New format: Whole currency units (PKR)
+      totalIncome,
+      totalExpenses,
+      totalPurchases, // Include purchases separately for transparency
+      netProfit,
+      pendingPayables: pendingPayablesKPI, // Structured object with count, amount (PKR), currency
+      overduePayables: overduePayablesKPI, // Structured object with count, amount (PKR), currency
+      netCashFlow,
+      inventoryValue,
+      currency: normalizedCurrency || 'PKR',
+      
+      // DEPRECATED: Legacy fields for backward compatibility (remove in next major version)
+      totalIncomeCents: totalIncome * 100,
+      totalExpensesCents: totalExpenses * 100,
+      totalPurchasesCents: totalPurchases * 100,
+      netProfitCents: netProfit * 100,
+      pendingPayablesCents: pendingPayablesCents,
+      overduePayablesCents: overduePayablesCents,
       netCashFlowCents,
       inventoryValueCents,
     },
@@ -306,7 +328,7 @@ export const getDashboardData = async (filters = {}) => {
 
   // Final validation log - ensure KPIs are not all zero
   console.log('[Dashboard Service] FINAL RESPONSE KPIs:', response.kpis);
-  if (totalIncomeCents === 0 && totalExpensesCents === 0 && netProfitCents === 0) {
+  if (totalIncome === 0 && totalExpenses === 0 && netProfit === 0) {
     console.warn('[Dashboard Service] WARNING: All KPIs are zero - this may indicate data issue');
   }
 

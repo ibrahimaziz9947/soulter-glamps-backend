@@ -149,20 +149,33 @@ export const getDashboardSummary = async (filters) => {
     const profitLoss = await computeProfitAndLoss(plFilters);
 
     // P&L service returns data in summary object
+    // NEW: Use whole PKR fields, fall back to cents fields
     const summary = profitLoss.summary || {};
     
+    const totalIncome = summary.totalIncome ?? Math.round((summary.totalIncomeCents || 0) / 100);
+    const totalExpenses = summary.totalExpenses ?? Math.round((summary.totalExpensesCents || 0) / 100);
+    const totalPurchases = summary.totalPurchases ?? Math.round((summary.totalPurchasesCents || 0) / 100);
+    const netProfit = summary.netProfit ?? Math.round((summary.netProfitCents || 0) / 100);
+    
     financeSnapshot = {
-      totalIncomeCents: summary.totalIncomeCents || 0,
-      totalExpensesCents: (summary.totalExpensesCents || 0) + (summary.totalPurchasesCents || 0), // Include purchases in expenses
-      netProfitCents: summary.netProfitCents || 0,
+      // New format: Whole PKR
+      totalIncome,
+      totalExpenses: totalExpenses + totalPurchases, // Include purchases in expenses
+      netProfit,
+      currency: 'PKR',
+      
+      // DEPRECATED: Legacy fields
+      totalIncomeCents: totalIncome * 100,
+      totalExpensesCents: (totalExpenses + totalPurchases) * 100,
+      netProfitCents: netProfit * 100,
     };
 
-    console.log('[SUPER ADMIN DASHBOARD] financeSnapshot (from P&L service):', financeSnapshot);
+    console.log('[SUPER ADMIN DASHBOARD] financeSnapshot (from P&L service, whole PKR):', financeSnapshot);
     console.log('[SUPER ADMIN DASHBOARD] P&L summary breakdown:', {
-      income: summary.totalIncomeCents || 0,
-      expenses: summary.totalExpensesCents || 0,
-      purchases: summary.totalPurchasesCents || 0,
-      netProfit: summary.netProfitCents || 0,
+      income: totalIncome,
+      expenses: totalExpenses,
+      purchases: totalPurchases,
+      netProfit,
     });
   } catch (error) {
     console.error('[SUPER ADMIN DASHBOARD] Failed to compute finance snapshot:', error);
@@ -184,12 +197,19 @@ export const getDashboardSummary = async (filters) => {
     const profitCents = revenueCents - expenseCents;
 
     financeSnapshot = {
+      // New format: Whole PKR
+      totalIncome: Math.round(revenueCents / 100),
+      totalExpenses: Math.round(expenseCents / 100),
+      netProfit: Math.round(profitCents / 100),
+      currency: 'PKR',
+      
+      // DEPRECATED: Legacy fields
       totalIncomeCents: revenueCents,
       totalExpensesCents: expenseCents,
       netProfitCents: profitCents,
     };
 
-    console.log('[SUPER ADMIN DASHBOARD] financeSnapshot (fallback calculation):', financeSnapshot);
+    console.log('[SUPER ADMIN DASHBOARD] financeSnapshot (fallback calculation, whole PKR):', financeSnapshot);
   }
 
   // ============================================
