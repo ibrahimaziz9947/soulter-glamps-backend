@@ -87,22 +87,35 @@ export const getDashboardData = async (filters = {}) => {
   // ============================================
   // NOTE: Purchase model has: amount, paidAmountCents, paymentStatus
   // Outstanding = amount - paidAmountCents (we'll calculate this manually)
+  // IMPORTANT: Apply date range filter to match dashboard period
   const payablesBaseWhere = {
     deletedAt: null,
     status: { in: ['DRAFT', 'CONFIRMED'] }, // Exclude CANCELLED
     paymentStatus: { in: ['UNPAID', 'PARTIAL'] }, // Has outstanding balance
   };
 
+  // Apply date range filter (use purchaseDate field)
+  if (fromISO || toISO) {
+    payablesBaseWhere.purchaseDate = {};
+    if (fromISO) {
+      payablesBaseWhere.purchaseDate.gte = new Date(fromISO);
+    }
+    if (toISO) {
+      payablesBaseWhere.purchaseDate.lte = new Date(toISO);
+    }
+  }
+
   // Apply currency filter if provided (matches profit-loss/statements pattern)
   if (normalizedCurrency) {
-    payablesBaseWhere.AND = [
-      {
-        OR: [
-          { currency: normalizedCurrency },
-          { currency: null },
-        ],
-      },
-    ];
+    if (!payablesBaseWhere.AND) {
+      payablesBaseWhere.AND = [];
+    }
+    payablesBaseWhere.AND.push({
+      OR: [
+        { currency: normalizedCurrency },
+        { currency: null },
+      ],
+    });
   }
 
   // Overdue: has dueDate AND dueDate < now

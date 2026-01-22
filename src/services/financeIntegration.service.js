@@ -59,10 +59,11 @@ export const postBookingToFinance = async (bookingId, userId) => {
   }
 
   // Create income entry
+  // IMPORTANT: Use PKR currency (default for Pakistan) and totalAmount is already in cents
   const income = await prisma.income.create({
     data: {
-      amount: booking.totalAmount,
-      currency: 'USD', // Default currency - could be parameterized
+      amount: booking.totalAmount, // Already in cents, no conversion needed
+      currency: 'PKR', // Default currency for bookings (Pakistan Rupees)
       dateReceived: booking.updatedAt, // Use booking update time as received date
       source: 'BOOKING',
       status: 'CONFIRMED',

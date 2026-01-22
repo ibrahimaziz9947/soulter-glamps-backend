@@ -171,7 +171,7 @@ export const getExpenses = async (filters = {}) => {
     data: expenses,
     pagination: paginationMeta,
     summary: {
-      totalAmount,
+      totalAmountCents: totalAmount, // Renamed to follow *Cents convention
       count: total,
     },
   };
