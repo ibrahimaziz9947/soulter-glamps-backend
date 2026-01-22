@@ -175,7 +175,9 @@ export const getDashboardData = async (filters = {}) => {
   // ============================================
   // CALCULATE PAYABLES KPIS (separate from P&L)
   // ============================================
-  // Outstanding amount = amount - paidAmountCents
+  // FIX: Calculate outstanding amounts, NOT total amounts
+  // Outstanding = totalAmount - paidAmount (what's still owed)
+  // This ensures dashboard matches the payables list outstanding totals
   const pendingPayablesCents = pendingPayables.reduce((sum, purchase) => {
     const outstanding = purchase.amount - (purchase.paidAmountCents || 0);
     return sum + outstanding;
@@ -185,6 +187,16 @@ export const getDashboardData = async (filters = {}) => {
     const outstanding = purchase.amount - (purchase.paidAmountCents || 0);
     return sum + outstanding;
   }, 0);
+
+  // Debug log to verify calculation
+  console.log('[Dashboard Service] Payables Calculation Debug:', {
+    pendingCount: pendingPayables.length,
+    pendingTotalAmount: pendingPayables.reduce((sum, p) => sum + p.amount, 0),
+    pendingPaidAmount: pendingPayables.reduce((sum, p) => sum + (p.paidAmountCents || 0), 0),
+    pendingOutstanding: pendingPayablesCents,
+    overdueCount: overduePayables.length,
+    overdueOutstanding: overduePayablesCents,
+  });
 
   console.log('[Dashboard Service] Payables KPIs:', {
     pendingPayablesCents,
@@ -269,6 +281,7 @@ export const getDashboardData = async (filters = {}) => {
     kpis: {
       totalIncomeCents,
       totalExpensesCents,
+      totalPurchasesCents, // Include purchases separately for transparency
       netProfitCents,
       pendingPayablesCents,
       overduePayablesCents,

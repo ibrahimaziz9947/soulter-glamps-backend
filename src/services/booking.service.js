@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import { NotFoundError, ValidationError, ForbiddenError, BookingConflictError } from '../utils/errors.js';
 import { createCommissionForBooking } from './commission.service.js';
+import { postBookingToFinance } from './financeIntegration.service.js';
 import { hashPassword } from '../utils/hash.js';
 
 /**
@@ -528,6 +529,18 @@ export const updateBookingStatus = async (bookingId, newStatus, userId) => {
     } catch (error) {
       console.error('Error creating commission:', error);
       // Don't fail the booking status update if commission creation fails
+    }
+  }
+
+  // Post booking revenue to Finance when status changes to CONFIRMED or COMPLETED
+  if (newStatus === 'CONFIRMED' || newStatus === 'COMPLETED') {
+    try {
+      const financeResult = await postBookingToFinance(bookingId, userId);
+      console.log('✅ Booking revenue posted to Finance:', financeResult.income?.id || 'already exists');
+    } catch (error) {
+      console.error('❌ Error posting booking to Finance:', error);
+      // Don't fail the booking status update if finance posting fails
+      // This can be retried manually or via backfill script
     }
   }
 
