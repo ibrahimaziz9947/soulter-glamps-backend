@@ -1,6 +1,7 @@
 import prisma from '../../../config/prisma.js';
 import { computeProfitAndLoss } from '../profitLoss/profitLoss.service.js';
 import { getStatements } from '../statements/statements.service.js';
+import { fromCents } from '../../../utils/money.js';
 
 /**
  * Get financial dashboard data
@@ -192,18 +193,18 @@ export const getDashboardData = async (filters = {}) => {
     return sum + outstanding;
   }, 0);
 
-  // Build structured payables KPIs (raw DB values)
+  // Build structured payables KPIs (convert to major units)
   const pendingPayablesKPI = {
     count: pendingPayables.length,
-    amount: pendingPayablesCents, // Raw DB value
-    amountCents: pendingPayablesCents, // Same value, alt field name
+    amount: fromCents(pendingPayablesCents), // Convert to major units
+    amountCents: fromCents(pendingPayablesCents), // Same value (legacy name)
     currency: normalizedCurrency || 'PKR',
   };
 
   const overduePayablesKPI = {
     count: overduePayables.length,
-    amount: overduePayablesCents, // Raw DB value
-    amountCents: overduePayablesCents, // Same value, alt field name
+    amount: fromCents(overduePayablesCents), // Convert to major units
+    amountCents: fromCents(overduePayablesCents), // Same value (legacy name)
     currency: normalizedCurrency || 'PKR',
   };
 
@@ -244,8 +245,8 @@ export const getDashboardData = async (filters = {}) => {
 
   console.log('[Dashboard Service] Net cash flow computed from statements:', netCashFlowCents, 'items:', statementsItems.length);
 
-  // Use raw value
-  const netCashFlow = netCashFlowCents;
+  // Use converted value
+  const netCashFlow = fromCents(netCashFlowCents);
 
   // ============================================
   // INVENTORY VALUE (Placeholder for future)
@@ -266,8 +267,8 @@ export const getDashboardData = async (filters = {}) => {
       date: entry.date,
       type: entry.type,
       description: entry.title || entry.counterparty || 'Transaction',
-      amount: entry.amountCents, // Raw DB value
-      amountCents: entry.amountCents, // Same value, alt field name
+      amount: fromCents(entry.amountCents), // Convert to major units
+      amountCents: fromCents(entry.amountCents), // Same value (legacy name)
       currency: entry.currency,
       direction: entry.direction,
       referenceId: entry.referenceId || null,
@@ -301,14 +302,14 @@ export const getDashboardData = async (filters = {}) => {
       to: toISO,
     },
     kpis: {
-      // Raw DB values (no conversion)
+      // Major units (converted from cents)
       totalIncome,
       totalExpenses,
       totalPurchases,
       netProfit,
       pendingPayables: pendingPayablesKPI,
       overduePayables: overduePayablesKPI,
-      netCashFlow,
+      netCashFlow: fromCents(netCashFlowCents),
       inventoryValue,
       currency: normalizedCurrency || 'PKR',
       

@@ -13,6 +13,7 @@
 
 import prisma from '../../../config/prisma.js';
 import { computeProfitAndLoss } from '../../finance/profitLoss/profitLoss.service.js';
+import { fromCents } from '../../../utils/money.js';
 
 /**
  * Get super admin dashboard summary

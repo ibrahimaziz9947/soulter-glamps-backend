@@ -1,6 +1,7 @@
 import prisma from '../../../config/prisma.js';
 import { NotFoundError, ValidationError, ForbiddenError } from '../../../utils/errors.js';
 import { getPagination, getPaginationMeta } from '../../../utils/pagination.js';
+import { toCents, fromCents } from '../../../utils/money.js';
 
 /**
  * Validate UUID format
@@ -46,11 +47,12 @@ export const createExpense = async (data, userId) => {
   }
 
   // Create expense
+  const amountCents = toCents(data.amount); // Convert to cents
   const expense = await prisma.expense.create({
     data: {
       title: data.title.trim(),
       description: data.description?.trim() || null,
-      amount: data.amount,
+      amount: amountCents,
       date: data.date ? new Date(data.date) : new Date(),
       vendor: data.vendor?.trim() || null,
       receiptUrl: data.receiptUrl?.trim() || null,
@@ -171,9 +173,9 @@ export const getExpenses = async (filters = {}) => {
     data: expenses,
     pagination: paginationMeta,
     summary: {
-      total: totalAmount, // Raw DB value
-      totalAmount, // Same value, alt field name
-      totalAmountCents: totalAmount, // Legacy field name
+      total: fromCents(totalAmount), // Convert to major units
+      totalAmount: fromCents(totalAmount), // Same value
+      totalAmountCents: fromCents(totalAmount), // Legacy field also in major units
       count: total,
     },
   };
@@ -342,7 +344,7 @@ export const updateExpense = async (id, data, userId) => {
   }
 
   if (data.amount !== undefined) {
-    updateData.amount = data.amount;
+    updateData.amount = toCents(data.amount); // Convert to cents
   }
 
   if (data.date !== undefined) {

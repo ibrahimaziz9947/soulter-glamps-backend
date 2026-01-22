@@ -1,6 +1,7 @@
 import prisma from '../../../config/prisma.js';
 import { NotFoundError, ValidationError } from '../../../utils/errors.js';
 import { getPagination, getPaginationMeta } from '../../../utils/pagination.js';
+import { toCents, fromCents } from '../../../utils/money.js';
 
 /**
  * Validate UUID format
@@ -136,8 +137,8 @@ export const listIncome = async (filters = {}) => {
     data: incomes,
     pagination: paginationMeta,
     summary: {
-      total: totalAmount, // Raw DB value
-      totalAmount, // Same value, alt field name
+      total: fromCents(totalAmount), // Convert to major units
+      totalAmount: fromCents(totalAmount), // Same value
       count: total,
     },
   };
@@ -257,11 +258,15 @@ export const createIncome = async (payload, actor) => {
     }
   }
 
+  // Convert amount from major units to cents for storage
+  const currency = payload.currency.trim().toUpperCase();
+  const amountCents = toCents(payload.amount, currency);
+
   // Create income record
   const income = await prisma.income.create({
     data: {
-      amount: payload.amount,
-      currency: payload.currency.trim().toUpperCase(),
+      amount: amountCents, // Store in cents
+      currency,
       dateReceived: payload.dateReceived ? new Date(payload.dateReceived) : new Date(),
       source: payload.source,
       status: payload.status || 'CONFIRMED',
@@ -335,7 +340,9 @@ export const updateIncome = async (id, payload, actor) => {
     if (typeof payload.amount !== 'number' || payload.amount <= 0) {
       throw new ValidationError('Amount must be a positive number');
     }
-    updateData.amount = payload.amount;
+    // Convert from major units to cents
+    const currency = payload.currency || existingIncome.currency;
+    updateData.amount = toCents(payload.amount, currency);
   }
 
   // Update currency
@@ -614,8 +621,8 @@ export const incomeSummary = async (filters = {}) => {
     const amountCents = item._sum.amount || 0;
     acc[item.source] = {
       count: item._count.id,
-      total: amountCents, // Raw DB value
-      totalAmount: amountCents, // Same value, alt field name
+      total: fromCents(amountCents), // Convert to major units
+      totalAmount: fromCents(amountCents), // Same value
     };
     return acc;
   }, {});
@@ -632,17 +639,17 @@ export const incomeSummary = async (filters = {}) => {
     const amountCents = item._sum.amount || 0;
     acc[item.status] = {
       count: item._count.id,
-      total: amountCents, // Raw DB value
-      totalAmount: amountCents, // Same value, alt field name
+      total: fromCents(amountCents), // Convert to major units
+      totalAmount: fromCents(amountCents), // Same value
     };
     return acc;
   }, {});
 
   return {
     totalCount,
-    total: totalAmountCents, // Raw DB value
-    totalAmount: totalAmountCents, // Same value, alt field name
-    totalAmountCents, // Legacy field name
+    total: fromCents(totalAmountCents), // Convert to major units
+    totalAmount: fromCents(totalAmountCents), // Same value
+    totalAmountCents: fromCents(totalAmountCents), // Legacy field also in major units
     bySource,
     byStatus,
   };
