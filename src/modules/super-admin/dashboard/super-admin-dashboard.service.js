@@ -126,9 +126,9 @@ export const getDashboardSummary = async (filters) => {
   // The profit/loss service includes: Income, Expenses (APPROVED), Purchases
   
   let financeSnapshot = {
-    revenueCents: 0,
-    expenseCents: 0,
-    profitCents: 0,
+    totalIncomeCents: 0,
+    totalExpensesCents: 0,
+    netProfitCents: 0,
   };
 
   try {
@@ -152,9 +152,9 @@ export const getDashboardSummary = async (filters) => {
     const summary = profitLoss.summary || {};
     
     financeSnapshot = {
-      revenueCents: summary.totalIncomeCents || 0,
-      expenseCents: (summary.totalExpensesCents || 0) + (summary.totalPurchasesCents || 0), // Include purchases in expenses
-      profitCents: summary.netProfitCents || 0,
+      totalIncomeCents: summary.totalIncomeCents || 0,
+      totalExpensesCents: (summary.totalExpensesCents || 0) + (summary.totalPurchasesCents || 0), // Include purchases in expenses
+      netProfitCents: summary.netProfitCents || 0,
     };
 
     console.log('[SUPER ADMIN DASHBOARD] financeSnapshot (from P&L service):', financeSnapshot);
@@ -184,9 +184,9 @@ export const getDashboardSummary = async (filters) => {
     const profitCents = revenueCents - expenseCents;
 
     financeSnapshot = {
-      revenueCents,
-      expenseCents,
-      profitCents,
+      totalIncomeCents: revenueCents,
+      totalExpensesCents: expenseCents,
+      netProfitCents: profitCents,
     };
 
     console.log('[SUPER ADMIN DASHBOARD] financeSnapshot (fallback calculation):', financeSnapshot);
