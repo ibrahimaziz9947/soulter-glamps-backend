@@ -1,6 +1,5 @@
 import prisma from '../../../config/prisma.js';
 import { ValidationError } from '../../../utils/errors.js';
-import { fromCents } from '../../../utils/money.js';
 
 /**
  * Compute Profit & Loss statement with income, expenses, and purchases
@@ -229,7 +228,7 @@ export const computeProfitAndLoss = async (filters = {}) => {
   });
 
   // Build base response with debug metadata
-  // Convert all amounts to major units for API response
+  // Return values as-is (major units, no conversion)
   const result = {
     filters: {
       from: from || null,
@@ -238,18 +237,18 @@ export const computeProfitAndLoss = async (filters = {}) => {
       expenseMode: expenseMode,
     },
     summary: {
-      // Return major units (converted from cents)
-      totalIncome: fromCents(totalIncomeCents),
-      totalExpenses: fromCents(totalExpensesCents),
-      totalPurchases: fromCents(totalPurchasesCents),
-      netProfit: fromCents(netProfitCents),
+      // Return as-is (major units)
+      totalIncome: totalIncomeCents,
+      totalExpenses: totalExpensesCents,
+      totalPurchases: totalPurchasesCents,
+      netProfit: netProfitCents,
       currency: currency || 'PKR',
       
-      // Legacy field names (same values for compatibility)
-      totalIncomeCents: fromCents(totalIncomeCents),
-      totalExpensesCents: fromCents(totalExpensesCents),
-      totalPurchasesCents: fromCents(totalPurchasesCents),
-      netProfitCents: fromCents(netProfitCents),
+      // Legacy field names (same values)
+      totalIncomeCents,
+      totalExpensesCents,
+      totalPurchasesCents,
+      netProfitCents,
     },
     // TEMP DEBUG: Add debug counts for verification
     debugCounts: {
@@ -289,8 +288,8 @@ export const computeProfitAndLoss = async (filters = {}) => {
 
     const incomeBySource = incomeBySourceRaw.map((item) => ({
       source: item.source,
-      total: fromCents(item._sum.amount || 0), // Convert to major units
-      totalAmount: fromCents(item._sum.amount || 0), // Alt field name
+      total: item._sum.amount || 0, // Return as-is (major units)
+      totalAmount: item._sum.amount || 0,
       count: item._count.id,
     }));
 
@@ -326,8 +325,8 @@ export const computeProfitAndLoss = async (filters = {}) => {
     const expensesByCategory = expensesByCategoryRaw.map((item) => ({
       categoryId: item.categoryId,
       categoryName: item.categoryId ? (categoryMap[item.categoryId] || 'Unknown') : 'Uncategorized',
-      total: fromCents(item._sum.amount || 0), // Convert to major units
-      totalAmount: fromCents(item._sum.amount || 0), // Alt field name
+      total: item._sum.amount || 0, // Return as-is (major units)
+      totalAmount: item._sum.amount || 0,
       count: item._count.id,
     }));
 
@@ -341,8 +340,8 @@ export const computeProfitAndLoss = async (filters = {}) => {
 
     const purchasesByVendor = purchasesByVendorRaw.map((item) => ({
       vendorName: item.vendorName,
-      total: fromCents(item._sum.amount || 0), // Convert to major units
-      totalAmount: fromCents(item._sum.amount || 0), // Alt field name
+      total: item._sum.amount || 0, // Return as-is (major units)
+      totalAmount: item._sum.amount || 0,
       count: item._count.id,
     }));
 

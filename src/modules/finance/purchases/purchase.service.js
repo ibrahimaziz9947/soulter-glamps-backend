@@ -1,7 +1,6 @@
 import prisma from '../../../config/prisma.js';
 import { NotFoundError, ValidationError } from '../../../utils/errors.js';
 import { getPagination, getPaginationMeta } from '../../../utils/pagination.js';
-import { toCents, fromCents } from '../../../utils/money.js';
 
 /**
  * Validate UUID format
@@ -122,7 +121,7 @@ export const listPurchases = async (filters = {}) => {
     limit: paginationMeta.limit,
     total: paginationMeta.total,
     summary: {
-      totalAmount: fromCents(totalAmount), // Convert to major units
+      totalAmount, // Return as-is (major units)
       count: total,
     },
   };
@@ -223,14 +222,13 @@ export const createPurchase = async (payload, actor) => {
       }
     }
 
-    // Convert amount from major units to cents
+    // Store amount as major units (no conversion)
     const currency = payload.currency.trim().toUpperCase();
-    const amountCents = toCents(payload.amount, currency);
 
     // Create purchase record with whitelisted fields only
     const purchase = await prisma.purchase.create({
       data: {
-        amount: amountCents, // Store in cents
+        amount: payload.amount, // Store as major units (no conversion)
         currency,
         purchaseDate: purchaseDate,
         vendorName: payload.vendorName.trim(),
@@ -324,9 +322,8 @@ export const updatePurchase = async (id, payload, actor) => {
       if (typeof payload.amount !== 'number' || payload.amount < 0) {
         throw new ValidationError('Amount must be a non-negative number');
       }
-      // Convert from major units to cents
-      const currency = payload.currency || existingPurchase.currency;
-      updateData.amount = toCents(payload.amount, currency);
+      // Store as major units (no conversion)
+      updateData.amount = payload.amount;
     }
 
     // Update currency
@@ -389,19 +386,17 @@ export const updatePurchase = async (id, payload, actor) => {
 
     // Update paidAmountCents (accept paidAmount in major units OR paidAmountCents directly)
     if (payload.paidAmount !== undefined) {
-      // New field: accept major units, convert to cents
+      // Accept major units (no conversion)
       if (typeof payload.paidAmount !== 'number' || payload.paidAmount < 0) {
         throw new ValidationError('Paid amount must be a non-negative number');
       }
-      const currency = updateData.currency || existingPurchase.currency;
-      const paidCents = toCents(payload.paidAmount, currency);
       const totalAmount = updateData.amount || existingPurchase.amount;
-      if (paidCents > totalAmount) {
+      if (payload.paidAmount > totalAmount) {
         throw new ValidationError('Paid amount cannot exceed total purchase amount');
       }
-      updateData.paidAmountCents = paidCents;
+      updateData.paidAmountCents = payload.paidAmount;
     } else if (payload.paidAmountCents !== undefined) {
-      // Legacy field: already in cents (for backward compatibility)
+      // Legacy field: also accept as major units (for consistency)
       if (typeof payload.paidAmountCents !== 'number' || payload.paidAmountCents < 0) {
         throw new ValidationError('Paid amount must be a non-negative number');
       }
