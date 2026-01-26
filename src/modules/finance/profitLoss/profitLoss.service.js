@@ -228,7 +228,7 @@ export const computeProfitAndLoss = async (filters = {}) => {
   });
 
   // Build base response with debug metadata
-  // Return values as-is (major units, no conversion)
+  // Return values in Major Units (PKR)
   const result = {
     filters: {
       from: from || null,
@@ -237,18 +237,12 @@ export const computeProfitAndLoss = async (filters = {}) => {
       expenseMode: expenseMode,
     },
     summary: {
-      // Return as-is (major units)
-      totalIncome: totalIncomeCents,
-      totalExpenses: totalExpensesCents,
-      totalPurchases: totalPurchasesCents,
-      netProfit: netProfitCents,
+      // Return normalized to major units
+      totalIncome: totalIncomeCents / 100,
+      totalExpenses: totalExpensesCents / 100,
+      totalPurchases: totalPurchasesCents / 100,
+      netProfit: netProfitCents / 100,
       currency: currency || 'PKR',
-      
-      // Legacy field names (same values)
-      totalIncomeCents,
-      totalExpensesCents,
-      totalPurchasesCents,
-      netProfitCents,
     },
     // TEMP DEBUG: Add debug counts for verification
     debugCounts: {
@@ -288,8 +282,8 @@ export const computeProfitAndLoss = async (filters = {}) => {
 
     const incomeBySource = incomeBySourceRaw.map((item) => ({
       source: item.source,
-      total: item._sum.amount || 0, // Return as-is (major units)
-      totalAmount: item._sum.amount || 0,
+      total: (item._sum.amount || 0) / 100, // Major units
+      totalAmount: (item._sum.amount || 0) / 100, // Major units
       count: item._count.id,
     }));
 
@@ -325,8 +319,8 @@ export const computeProfitAndLoss = async (filters = {}) => {
     const expensesByCategory = expensesByCategoryRaw.map((item) => ({
       categoryId: item.categoryId,
       categoryName: item.categoryId ? (categoryMap[item.categoryId] || 'Unknown') : 'Uncategorized',
-      total: item._sum.amount || 0, // Return as-is (major units)
-      totalAmount: item._sum.amount || 0,
+      total: (item._sum.amount || 0) / 100, // Major units
+      totalAmount: (item._sum.amount || 0) / 100, // Major units
       count: item._count.id,
     }));
 
@@ -340,8 +334,8 @@ export const computeProfitAndLoss = async (filters = {}) => {
 
     const purchasesByVendor = purchasesByVendorRaw.map((item) => ({
       vendorName: item.vendorName,
-      total: item._sum.amount || 0, // Return as-is (major units)
-      totalAmount: item._sum.amount || 0,
+      total: (item._sum.amount || 0) / 100, // Major units
+      totalAmount: (item._sum.amount || 0) / 100, // Major units
       count: item._count.id,
     }));
 

@@ -127,17 +127,28 @@ export const listIncome = async (filters = {}) => {
     },
   });
 
-  const totalAmount = aggregation._sum.amount || 0;
+  const totalAmountCents = aggregation._sum.amount || 0;
+  const totalAmount = totalAmountCents / 100;
 
   // Build pagination metadata
   const paginationMeta = getPaginationMeta(total, pagination.page, pagination.limit);
 
+  // Normalize data to major units
+  const normalizedIncomes = incomes.map(income => ({
+    ...income,
+    amount: income.amount / 100,
+    booking: income.booking ? {
+      ...income.booking,
+      totalAmount: income.booking.totalAmount / 100
+    } : null
+  }));
+
   return {
-    data: incomes,
+    data: normalizedIncomes,
     pagination: paginationMeta,
     summary: {
-      total: totalAmount, // Return as-is (major units)
-      totalAmount, // Same value
+      total: totalAmount, // Major units
+      totalAmount, // Major units
       count: total,
     },
   };
@@ -338,8 +349,8 @@ export const updateIncome = async (id, payload, actor) => {
     if (typeof payload.amount !== 'number' || payload.amount <= 0) {
       throw new ValidationError('Amount must be a positive number');
     }
-    // Store as major units (no conversion)
-    updateData.amount = payload.amount;
+    // Store as cents (convert from major units)
+    updateData.amount = Math.round(payload.amount * 100);
   }
 
   // Update currency
@@ -615,10 +626,11 @@ export const incomeSummary = async (filters = {}) => {
   });
 
   const bySource = groupBySource.reduce((acc, item) => {
-    const amount = item._sum.amount || 0;
+    const amountCents = item._sum.amount || 0;
+    const amount = amountCents / 100;
     acc[item.source] = {
       count: item._count.id,
-      total: amount, // Return as-is (major units)
+      total: amount, // Major units
       totalAmount: amount,
     };
     return acc;
@@ -633,19 +645,21 @@ export const incomeSummary = async (filters = {}) => {
   });
 
   const byStatus = groupByStatus.reduce((acc, item) => {
-    const amount = item._sum.amount || 0;
+    const amountCents = item._sum.amount || 0;
+    const amount = amountCents / 100;
     acc[item.status] = {
       count: item._count.id,
-      total: amount, // Return as-is (major units)
+      total: amount, // Major units
       totalAmount: amount,
     };
     return acc;
   }, {});
 
+  const totalAmount = totalAmountCents / 100;
+
   return {
     totalCount,
-    total: totalAmountCents, // Return as-is (major units)
-    totalAmount: totalAmountCents,
-    totalAmountCents, // Legacy field name
+    total: totalAmount, // Major units
+    totalAmount: totalAmount,
   };
 };

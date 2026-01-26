@@ -146,11 +146,18 @@ export const listPayables = async (params = {}) => {
       prisma.purchase.count({ where }),
     ]);
 
-    // Enrich with computed outstanding amount
-    const enrichedPayables = payables.map((purchase) => ({
-      ...purchase,
-      outstandingCents: purchase.amount - purchase.paidAmountCents,
-    }));
+    // Enrich with computed outstanding amount (Normalized to Major Units)
+    const enrichedPayables = payables.map((purchase) => {
+      const outstandingCents = purchase.amount - purchase.paidAmountCents;
+      return {
+        ...purchase,
+        amount: purchase.amount / 100, // Major units
+        paidAmount: purchase.paidAmountCents / 100, // Major units
+        outstanding: outstandingCents / 100, // Major units
+        // Remove raw cents fields
+        paidAmountCents: undefined,
+      };
+    });
 
     return {
       items: enrichedPayables,
@@ -251,8 +258,8 @@ export const getPayablesSummary = async (params = {}) => {
     let totalOutstandingCents = 0;
 
     const statusBreakdown = {
-      UNPAID: { count: 0, outstandingCents: 0 },
-      PARTIAL: { count: 0, outstandingCents: 0 },
+      UNPAID: { count: 0, outstanding: 0 },
+      PARTIAL: { count: 0, outstanding: 0 },
     };
 
     const currencyBreakdown = {};
@@ -264,23 +271,23 @@ export const getPayablesSummary = async (params = {}) => {
       // Status breakdown
       if (statusBreakdown[purchase.paymentStatus]) {
         statusBreakdown[purchase.paymentStatus].count += 1;
-        statusBreakdown[purchase.paymentStatus].outstandingCents += outstanding;
+        statusBreakdown[purchase.paymentStatus].outstanding += (outstanding / 100);
       }
 
       // Currency breakdown
       if (!currencyBreakdown[purchase.currency]) {
         currencyBreakdown[purchase.currency] = {
           count: 0,
-          outstandingCents: 0,
+          outstanding: 0,
         };
       }
       currencyBreakdown[purchase.currency].count += 1;
-      currencyBreakdown[purchase.currency].outstandingCents += outstanding;
+      currencyBreakdown[purchase.currency].outstanding += (outstanding / 100);
     });
 
     return {
       totalCount,
-      totalOutstandingCents,
+      totalOutstanding: totalOutstandingCents / 100, // Major units
       totalsByStatus: statusBreakdown,
       totalsByCurrency: currencyBreakdown,
     };
@@ -296,11 +303,11 @@ export const getPayablesSummary = async (params = {}) => {
 /**
  * Record a payment against a payable (purchase)
  * @param {string} purchaseId - Purchase ID
- * @param {number} amountCents - Payment amount in cents
+ * @param {number} amount - Payment amount in major units (PKR)
  * @param {object} actor - User recording the payment
  * @returns {Promise<object>} Updated purchase with outstanding info
  */
-export const recordPayablePayment = async (purchaseId, amountCents, actor) => {
+export const recordPayablePayment = async (purchaseId, amount, actor) => {
   try {
     // Validate purchaseId
     if (!isValidUUID(purchaseId)) {
@@ -312,10 +319,13 @@ export const recordPayablePayment = async (purchaseId, amountCents, actor) => {
       throw new ValidationError('Actor with userId is required');
     }
 
-    // Validate amountCents
-    if (typeof amountCents !== 'number' || !Number.isInteger(amountCents) || amountCents <= 0) {
-      throw new ValidationError('Payment amount must be a positive integer (cents)');
+    // Validate amount
+    if (typeof amount !== 'number' || amount <= 0) {
+      throw new ValidationError('Payment amount must be a positive number');
     }
+
+    // Convert to cents
+    const amountCents = Math.round(amount * 100);
 
     // Fetch the purchase
     const purchase = await prisma.purchase.findFirst({
@@ -339,7 +349,7 @@ export const recordPayablePayment = async (purchaseId, amountCents, actor) => {
     // Validate payment doesn't exceed outstanding
     if (amountCents > outstanding) {
       throw new ValidationError(
-        `Payment amount (${amountCents}) exceeds outstanding balance (${outstanding})`
+        `Payment amount (${amount}) exceeds outstanding balance (${outstanding / 100})`
       );
     }
 
@@ -385,8 +395,12 @@ export const recordPayablePayment = async (purchaseId, amountCents, actor) => {
     // Return with computed outstanding
     return {
       ...updatedPurchase,
-      outstandingCents: updatedPurchase.amount - updatedPurchase.paidAmountCents,
-      paymentRecorded: amountCents,
+      amount: updatedPurchase.amount / 100, // Major units
+      paidAmount: updatedPurchase.paidAmountCents / 100, // Major units
+      outstanding: (updatedPurchase.amount - updatedPurchase.paidAmountCents) / 100, // Major units
+      paymentRecorded: amount, // Major units
+      // Remove raw cents fields
+      paidAmountCents: undefined,
     };
   } catch (error) {
     console.error('❌ Record payable payment error:', error);

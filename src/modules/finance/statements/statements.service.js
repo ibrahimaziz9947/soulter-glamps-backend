@@ -357,11 +357,13 @@ export const getStatements = async (filters = {}) => {
       ...item,
       // Add explicit direction field for dashboard
       direction: item.amountCents >= 0 ? 'in' : 'out',
-      // Ensure amountCents is absolute value in response
-      amountCents: Math.abs(item.amountCents),
+      // Convert to Major Units (PKR) and use absolute value
+      amount: Math.abs(item.amountCents) / 100,
       date: item.date ? item.date.toISOString() : null,
       createdAt: item.createdAt ? item.createdAt.toISOString() : null,
       updatedAt: item.updatedAt ? item.updatedAt.toISOString() : null,
+      // Remove raw cents field
+      amountCents: undefined,
     }));
 
     console.log('[Statements Service] Response items length:', responseItems.length);
@@ -380,9 +382,9 @@ export const getStatements = async (filters = {}) => {
         hasPreviousPage: page > 1,
       },
       totals: {
-        totalInCents,    // Sum of all positive amounts (income)
-        totalOutCents,   // Sum of all negative amounts (expenses + purchases)
-        netCents,        // Net: totalInCents + totalOutCents
+        totalIn: totalInCents / 100,    // Major units
+        totalOut: totalOutCents / 100,  // Major units
+        net: netCents / 100,            // Major units
       },
       debug: {
         // Applied filters (for Railway deployment verification)

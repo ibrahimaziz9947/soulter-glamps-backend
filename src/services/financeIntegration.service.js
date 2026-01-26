@@ -93,7 +93,7 @@ export const postBookingToFinance = async (bookingId, userId) => {
         counterparty: booking.customerName,
         amountCents: booking.totalAmount,
         direction: 'INFLOW',
-        currency: 'USD',
+        currency: 'PKR',
         referenceId: bookingId,
         source: 'BOOKING',
         notes: income.notes,

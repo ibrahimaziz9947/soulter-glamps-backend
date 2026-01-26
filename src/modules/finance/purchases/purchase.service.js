@@ -110,18 +110,29 @@ export const listPurchases = async (filters = {}) => {
     },
   });
 
-  const totalAmount = aggregation._sum.amount || 0;
+  const totalAmountCents = aggregation._sum.amount || 0;
+  const totalAmount = totalAmountCents / 100;
 
   // Build pagination metadata
   const paginationMeta = getPaginationMeta(total, pagination.page, pagination.limit);
 
+  // Normalize data to major units
+  const normalizedPurchases = purchases.map(purchase => {
+    const { paidAmountCents, ...rest } = purchase;
+    return {
+      ...rest,
+      amount: purchase.amount / 100,
+      paidAmount: paidAmountCents / 100,
+    };
+  });
+
   return {
-    items: purchases,
+    items: normalizedPurchases,
     page: paginationMeta.page,
     limit: paginationMeta.limit,
     total: paginationMeta.total,
     summary: {
-      totalAmount, // Return as-is (major units)
+      totalAmount, // Major units
       count: total,
     },
   };
@@ -222,13 +233,14 @@ export const createPurchase = async (payload, actor) => {
       }
     }
 
-    // Store amount as major units (no conversion)
+    // Store amount as cents (convert from major units)
+    const amountCents = Math.round(payload.amount * 100);
     const currency = payload.currency.trim().toUpperCase();
 
     // Create purchase record with whitelisted fields only
     const purchase = await prisma.purchase.create({
       data: {
-        amount: payload.amount, // Store as major units (no conversion)
+        amount: amountCents, // Store as cents
         currency,
         purchaseDate: purchaseDate,
         vendorName: payload.vendorName.trim(),
@@ -384,28 +396,21 @@ export const updatePurchase = async (id, payload, actor) => {
       updateData.paymentStatus = payload.paymentStatus;
     }
 
-    // Update paidAmountCents (accept paidAmount in major units OR paidAmountCents directly)
+    // Update paidAmount (accept paidAmount in major units)
     if (payload.paidAmount !== undefined) {
-      // Accept major units (no conversion)
       if (typeof payload.paidAmount !== 'number' || payload.paidAmount < 0) {
         throw new ValidationError('Paid amount must be a non-negative number');
       }
+      
       const totalAmount = updateData.amount || existingPurchase.amount;
-      if (payload.paidAmount > totalAmount) {
+      const paidAmountCents = Math.round(payload.paidAmount * 100);
+      
+      if (paidAmountCents > totalAmount) {
         throw new ValidationError('Paid amount cannot exceed total purchase amount');
       }
-      updateData.paidAmountCents = payload.paidAmount;
-    } else if (payload.paidAmountCents !== undefined) {
-      // Legacy field: also accept as major units (for consistency)
-      if (typeof payload.paidAmountCents !== 'number' || payload.paidAmountCents < 0) {
-        throw new ValidationError('Paid amount must be a non-negative number');
-      }
-      const totalAmount = updateData.amount || existingPurchase.amount;
-      if (payload.paidAmountCents > totalAmount) {
-        throw new ValidationError('Paid amount cannot exceed total purchase amount');
-      }
-      updateData.paidAmountCents = payload.paidAmountCents;
+      updateData.paidAmountCents = paidAmountCents;
     }
+    // Removed legacy payload.paidAmountCents support to enforce Major Units consistency
 
     // Update dueDate
     if (payload.dueDate !== undefined) {
