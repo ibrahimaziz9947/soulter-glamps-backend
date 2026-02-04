@@ -161,3 +161,34 @@ export const checkAvailability = asyncHandler(async (req, res) => {
     data: availabilityData,
   });
 });
+
+export const checkAvailabilityPost = asyncHandler(async (req, res) => {
+  const { glampId, glampIds, checkIn, checkOut } = req.body || {};
+  let targetGlampIds = [];
+  if (Array.isArray(glampIds) && glampIds.length > 0) {
+    targetGlampIds = glampIds;
+  } else if (glampId) {
+    targetGlampIds = [glampId];
+  }
+  if (targetGlampIds.length === 0 || !checkIn || !checkOut) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required parameters: glampId (or glampIds), checkIn, and checkOut are required',
+    });
+  }
+  const checkInDate = new Date(checkIn);
+  const checkOutDate = new Date(checkOut);
+  if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid date format. Please use YYYY-MM-DD format',
+    });
+  }
+  const result = await bookingService.checkAvailability(targetGlampIds, checkInDate, checkOutDate);
+  const conflicts = result.available ? [] : Array.from(new Set(result.conflicts.flatMap(c => c.involvedGlamps.map(g => g.name || g.id))));
+  return res.status(200).json({
+    success: true,
+    available: result.available,
+    conflicts,
+  });
+});

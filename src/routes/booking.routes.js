@@ -7,6 +7,7 @@ const router = express.Router();
 
 // Availability check - Must come BEFORE /:id route to avoid conflicts
 router.get('/availability', bookingController.checkAvailability);
+router.post('/check-availability', bookingController.checkAvailabilityPost);
 
 // Public routes - Anyone can create or view a booking
 router.post('/', bookingController.createBooking);

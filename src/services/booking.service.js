@@ -211,6 +211,7 @@ export const createBooking = async (bookingData) => {
     agentId // Optional: agent who referred this booking
   } = bookingData;
 
+  console.log("[Booking] createBooking payload", bookingData);
   // Support both 'guests' and 'numberOfGuests'
   const guestCount = guests || numberOfGuests || 1;
 
@@ -225,9 +226,10 @@ export const createBooking = async (bookingData) => {
   }
 
   // Validate number of glamps (1..4)
-  if (targetGlampIds.length > 4) {
-    throw new ValidationError('You can book a maximum of 4 glamps');
+  if (targetGlampIds.length < 1 || targetGlampIds.length > 4) {
+    throw new ValidationError('You can book between 1 and 4 glamps');
   }
+  console.log("[Booking] glampIds", targetGlampIds, "guests", guestCount, "max", targetGlampIds.length * 4);
 
   // Validate required fields
   if (!customerName) {
@@ -284,9 +286,7 @@ export const createBooking = async (bookingData) => {
     throw new ValidationError('Booking must be at least 1 night');
   }
 
-  // Validate Guests Capacity
-  // Rule: Max capacity based on selected glamps
-  // Fetch all glamps to get prices and details
+  // Fetch selected glamps
   const glamps = await prisma.glamp.findMany({
     where: { id: { in: targetGlampIds } }
   });
@@ -295,9 +295,9 @@ export const createBooking = async (bookingData) => {
     throw new NotFoundError('One or more selected glamps are no longer available');
   }
 
-  const maxCapacity = glamps.reduce((sum, glamp) => sum + glamp.maxGuests, 0);
+  const maxCapacity = targetGlampIds.length * 4;
   if (guestCount > maxCapacity) {
-    throw new ValidationError(`Selected glamps accommodate max ${maxCapacity} guests. You selected ${targetGlampIds.length} glamp(s).`);
+    throw new ValidationError('Guests exceed capacity (4 per glamp)');
   }
 
   // Check status and calculate total amount
