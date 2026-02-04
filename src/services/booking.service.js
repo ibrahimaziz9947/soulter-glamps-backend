@@ -1,5 +1,5 @@
 import prisma from '../config/prisma.js';
-import { NotFoundError, ValidationError, ForbiddenError, BookingConflictError } from '../utils/errors.js';
+import { AppError, NotFoundError, ValidationError, ForbiddenError, BookingConflictError } from '../utils/errors.js';
 import { createCommissionForBooking } from './commission.service.js';
 import { postBookingToFinance } from './financeIntegration.service.js';
 import { hashPassword } from '../utils/hash.js';
@@ -198,250 +198,217 @@ export const checkAvailability = async (glampIdOrIds, checkIn, checkOut, exclude
  * Create a new booking (public - no login required)
  */
 export const createBooking = async (bookingData) => {
-  const { 
-    customerName, 
-    customerEmail,
-    customerPhone, // Optional phone number
-    glampId, 
-    glampIds, // Support multiple glamps
-    checkInDate,
-    checkOutDate,
-    numberOfGuests, // Accept both formats
-    guests, // Frontend may send 'guests' instead
-    agentId // Optional: agent who referred this booking
-  } = bookingData;
+  try {
+    const { 
+      customerName, 
+      customerEmail,
+      customerPhone,
+      glampId, 
+      glampIds,
+      checkInDate,
+      checkOutDate,
+      checkIn,
+      checkOut,
+      numberOfGuests,
+      guests,
+      agentId,
+    } = bookingData;
 
-  console.log("[Booking] createBooking payload", bookingData);
-  // Support both 'guests' and 'numberOfGuests'
-  const guestCount = guests || numberOfGuests || 1;
+    console.log("[Booking] createBooking payload", bookingData);
+    const guestCount = guests || numberOfGuests || 1;
 
-  // Resolve glamp IDs
-  let targetGlampIds = [];
-  if (glampIds && Array.isArray(glampIds) && glampIds.length > 0) {
-    targetGlampIds = glampIds;
-  } else if (glampId) {
-    targetGlampIds = [glampId];
-  } else {
-    throw new ValidationError('Please select at least one glamp to book');
-  }
-
-  // Validate number of glamps (1..4)
-  if (targetGlampIds.length < 1 || targetGlampIds.length > 4) {
-    throw new ValidationError('You can book between 1 and 4 glamps');
-  }
-  console.log("[Booking] glampIds", targetGlampIds, "guests", guestCount, "max", targetGlampIds.length * 4);
-
-  // Validate required fields
-  if (!customerName) {
-    throw new ValidationError('Please provide your name');
-  }
-
-  if (!checkInDate || !checkOutDate) {
-    throw new ValidationError('Please select check-in and check-out dates');
-  }
-
-  // Validate UUID format for all glamps
-  for (const id of targetGlampIds) {
-    if (!isValidUUID(id)) {
-      throw new ValidationError('Invalid glamp selection. Please try again');
+    let targetGlampIds = [];
+    if (glampIds && Array.isArray(glampIds) && glampIds.length > 0) {
+      targetGlampIds = glampIds;
+    } else if (glampId) {
+      targetGlampIds = [glampId];
+    } else {
+      throw new ValidationError('Please select at least one glamp to book');
     }
-  }
 
-  if (agentId && !isValidUUID(agentId)) {
-    throw new ValidationError('Invalid agent reference');
-  }
-
-  // Validate email format if provided
-  if (customerEmail) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(customerEmail)) {
-      throw new ValidationError('Please provide a valid email address');
+    if (targetGlampIds.length < 1 || targetGlampIds.length > 4) {
+      throw new ValidationError('You can book between 1 and 4 glamps');
     }
-  }
+    console.log("[Booking] glampIds", targetGlampIds, "guests", guestCount, "max", targetGlampIds.length * 4);
 
-  // Parse and validate dates
-  const checkIn = new Date(checkInDate);
-  const checkOut = new Date(checkOutDate);
-
-  if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
-    throw new ValidationError('Please provide valid dates for your booking');
-  }
-
-  // Validate date range
-  if (checkOut <= checkIn) {
-    throw new ValidationError('Check-out date must be after check-in date');
-  }
-
-  // Validate dates are in the future
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  if (checkIn < today) {
-    throw new ValidationError('Check-in date cannot be in the past');
-  }
-
-  // Calculate number of nights
-  const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
-
-  if (nights < 1) {
-    throw new ValidationError('Booking must be at least 1 night');
-  }
-
-  // Fetch selected glamps
-  const glamps = await prisma.glamp.findMany({
-    where: { id: { in: targetGlampIds } }
-  });
-
-  if (glamps.length !== targetGlampIds.length) {
-    throw new NotFoundError('One or more selected glamps are no longer available');
-  }
-
-  const maxCapacity = targetGlampIds.length * 4;
-  if (guestCount > maxCapacity) {
-    throw new ValidationError('Guests exceed capacity (4 per glamp)');
-  }
-
-  // Check status and calculate total amount
-  let totalAmount = 0;
-  for (const glamp of glamps) {
-    if (glamp.status !== 'ACTIVE') {
-      throw new ValidationError(`Glamp "${glamp.name}" is currently unavailable. Please choose another one.`);
+    if (!customerName) {
+      throw new ValidationError('Please provide your name');
     }
-    totalAmount += glamp.pricePerNight * nights;
-  }
 
-  // Find or create customer
-  const customer = await findOrCreateCustomer(customerName, customerEmail);
-
-  // Verify agent exists if provided
-  if (agentId) {
-    const agent = await prisma.user.findUnique({
-      where: { id: agentId },
-    });
-
-    if (!agent || agent.role !== 'AGENT') {
-      throw new ValidationError('Invalid agent ID');
+    const checkInRaw = checkInDate || checkIn;
+    const checkOutRaw = checkOutDate || checkOut;
+    if (!checkInRaw || !checkOutRaw) {
+      throw new ValidationError('Please select check-in and check-out dates');
     }
-  }
 
-  // Log booking creation attempt
-  console.log('📝 Creating booking:', {
-    glampIds: targetGlampIds,
-    customerEmail: customerEmail || 'No Email',
-    checkIn: checkIn.toISOString(),
-    checkOut: checkOut.toISOString(),
-    nights,
-    totalAmount: `$${totalAmount / 100}`,
-  });
-
-  // TRANSACTION: Re-check availability and create booking atomically
-  const booking = await prisma.$transaction(async (tx) => {
-    // Re-check conflicts for ALL glamps
-    for (const gid of targetGlampIds) {
-      const conflicts = await tx.booking.findMany({
-        where: {
-          glampId: gid, // Check legacy field for now, or check items? 
-                        // Wait, if we use items, we should check items. 
-                        // BUT existing bookings use glampId.
-                        // New bookings will use items AND glampId (primary).
-                        // So checking glampId is mostly safe for old bookings.
-                        // For NEW bookings with multiple items, we need to check if ANY booking has this glamp as an item.
-                        // However, since we haven't migrated existing bookings to items, 
-                        // and we populate glampId for new bookings (at least one),
-                        // we need to be careful.
-                        // Ideally, we check:
-                        // Booking where glampId = gid OR items contains gid
-          OR: [
-            { glampId: gid },
-            { items: { some: { glampId: gid } } }
-          ],
-          status: {
-            in: ['CONFIRMED', 'PENDING'],
-          },
-          AND: [
-            { checkInDate: { lt: checkOut } },
-            { checkOutDate: { gt: checkIn } },
-          ],
-        },
-      });
-
-      if (conflicts.length > 0) {
-        throw new BookingConflictError({
-          available: false,
-          conflictingCount: conflicts.length,
-          conflicts: conflicts.map(b => ({
-            id: b.id,
-            checkIn: b.checkInDate.toISOString(),
-            checkOut: b.checkOutDate.toISOString(),
-            status: b.status,
-          })),
-        });
+    for (const id of targetGlampIds) {
+      if (!isValidUUID(id)) {
+        throw new ValidationError('Invalid glamp selection. Please try again');
       }
     }
 
-    // No conflicts - create booking
-    return tx.booking.create({
-      data: {
-        customerId: customer.id,
-        customerName: customer.name, // Snapshot field
-        agentId: agentId || null,
-        glampId: targetGlampIds[0], // Primary glamp (for backward compatibility)
-        glampName: glamps[0].name, // Snapshot field (primary)
-        checkInDate: checkIn,
-        checkOutDate: checkOut,
-        guests: guestCount,
-        totalAmount,
-        status: 'PENDING',
-        items: {
-          create: glamps.map(g => ({
-            glampId: g.id,
-            price: g.pricePerNight
-          }))
-        }
-      },
-      include: {
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
+    if (agentId && !isValidUUID(agentId)) {
+      throw new ValidationError('Invalid agent reference');
+    }
+
+    if (customerEmail) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(customerEmail)) {
+        throw new ValidationError('Please provide a valid email address');
+      }
+    }
+
+    const checkInDateObj = new Date(checkInRaw);
+    const checkOutDateObj = new Date(checkOutRaw);
+
+    if (isNaN(checkInDateObj.getTime()) || isNaN(checkOutDateObj.getTime())) {
+      throw new ValidationError('Please provide valid dates for your booking');
+    }
+
+    if (checkOutDateObj <= checkInDateObj) {
+      throw new ValidationError('Check-out date must be after check-in date');
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (checkInDateObj < today) {
+      throw new ValidationError('Check-in date cannot be in the past');
+    }
+
+    const nights = Math.ceil((checkOutDateObj - checkInDateObj) / (1000 * 60 * 60 * 24));
+
+    if (nights < 1) {
+      throw new ValidationError('Booking must be at least 1 night');
+    }
+
+    const glamps = await prisma.glamp.findMany({
+      where: { id: { in: targetGlampIds } }
+    });
+
+    if (glamps.length !== targetGlampIds.length) {
+      throw new NotFoundError('One or more selected glamps are no longer available');
+    }
+
+    const maxCapacity = targetGlampIds.length * 4;
+    if (guestCount > maxCapacity) {
+      throw new ValidationError('Guests exceed capacity (4 per glamp)');
+    }
+
+    let totalAmount = 0;
+    for (const glamp of glamps) {
+      if (glamp.status !== 'ACTIVE') {
+        throw new ValidationError(`Glamp "${glamp.name}" is currently unavailable. Please choose another one.`);
+      }
+      totalAmount += glamp.pricePerNight * nights;
+    }
+
+    const customer = await findOrCreateCustomer(customerName, customerEmail);
+
+    if (agentId) {
+      const agent = await prisma.user.findUnique({
+        where: { id: agentId },
+      });
+
+      if (!agent || agent.role !== 'AGENT') {
+        throw new ValidationError('Invalid agent ID');
+      }
+    }
+
+    console.log('📝 Creating booking:', {
+      glampIds: targetGlampIds,
+      customerEmail: customerEmail || 'No Email',
+      checkIn: checkInDateObj.toISOString(),
+      checkOut: checkOutDateObj.toISOString(),
+      nights,
+      totalAmount: `$${totalAmount / 100}`,
+    });
+
+    const availability = await checkAvailability(targetGlampIds, checkInDateObj, checkOutDateObj);
+    if (!availability.available) {
+      const conflictsList = availability.conflicts.map(c => c.involvedGlamps.map(g => g.name || g.id)).flat();
+      throw new ValidationError('One or more selected glamps not available', conflictsList);
+    }
+    const hasBookingItem = !!prisma.bookingItem;
+    if (!hasBookingItem && targetGlampIds.length > 1) {
+      throw new ValidationError('Multi-glamp booking not supported: schema missing');
+    }
+
+    const booking = await prisma.$transaction(async (tx) => {
+      return tx.booking.create({
+        data: {
+          customerId: customer.id,
+          customerName: customer.name,
+          agentId: agentId || null,
+          glampId: targetGlampIds[0],
+          glampName: glamps[0].name,
+          checkInDate: checkInDateObj,
+          checkOutDate: checkOutDateObj,
+          guests: guestCount,
+          totalAmount,
+          status: 'PENDING',
+          ...(hasBookingItem && {
+            items: {
+              create: glamps.map(g => ({
+                glampId: g.id,
+                price: g.pricePerNight
+              }))
+            }
+          }),
         },
-        agent: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+        include: {
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
           },
-        },
-        glamp: {
-          select: {
-            id: true,
-            name: true,
-            pricePerNight: true,
+          agent: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
           },
-        },
-        items: {
-          include: {
-            glamp: {
-              select: {
-                name: true
+          glamp: {
+            select: {
+              id: true,
+              name: true,
+              pricePerNight: true,
+            },
+          },
+          ...(hasBookingItem && {
+            items: {
+              include: {
+                glamp: {
+                  select: {
+                    name: true
+                  }
+                }
               }
             }
-          }
-        }
-      },
+          }),
+        },
+      });
     });
-  });
 
-  // Log successful booking creation
-  console.log('✅ Booking created successfully:', {
-    bookingId: booking.id,
-    customer: booking.customer.name,
-    glampCount: booking.items.length,
-    status: booking.status,
-  });
+    console.log('✅ Booking created successfully:', {
+      bookingId: booking.id,
+      customer: booking.customer.name,
+      glampCount: hasBookingItem ? booking.items.length : 1,
+      status: booking.status,
+    });
 
-  return booking;
+    return booking;
+  } catch (error) {
+    console.error("[Bookings] createBooking error", error);
+    if (error?.meta) console.error("Prisma meta:", error.meta);
+    if (error instanceof ValidationError || error instanceof NotFoundError || error instanceof ForbiddenError || error instanceof BookingConflictError) {
+      throw error;
+    }
+    throw new AppError('Unable to create booking', 500);
+  }
+
 };
 
 /**
