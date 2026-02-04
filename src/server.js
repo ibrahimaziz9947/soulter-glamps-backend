@@ -8,6 +8,7 @@ import bookingRoutes from './routes/booking.routes.js';
 import commissionsRoutes from './routes/commissions.routes.js';
 import agentRoutes from './routes/agent.routes.js';
 import glampRoutes from './routes/glamp.routes.js';
+import publicBookingsRoutes from './routes/public-bookings.routes.js';
 import dbViewerRoutes from './routes/db-viewer.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import superAdminRoutes from './routes/super-admin.routes.js';
@@ -207,6 +208,7 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api', roleTestRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/public', publicBookingsRoutes);
 app.use('/api/commissions', commissionsRoutes);
 app.use('/api/agent', agentRoutes);
 app.use('/api/glamps', glampRoutes);

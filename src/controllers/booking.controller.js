@@ -11,7 +11,7 @@ export const createBooking = asyncHandler(async (req, res) => {
 
   return res.status(201).json({
     success: true,
-    message: 'Booking created successfully! We will contact you soon.',
+    message: 'Booking created',
     booking: {
       id: booking.id,
       status: booking.status,

@@ -294,7 +294,7 @@ export const createBooking = async (bookingData) => {
 
     const maxCapacity = targetGlampIds.length * 4;
     if (guestCount > maxCapacity) {
-      throw new ValidationError('Guests exceed capacity (4 per glamp)');
+      throw new ValidationError(`Each glamp accommodates max 4 guests. With ${targetGlampIds.length} glamps you can book up to ${maxCapacity} guests.`);
     }
 
     let totalAmount = 0;
