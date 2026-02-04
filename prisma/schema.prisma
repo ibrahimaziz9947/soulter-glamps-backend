@@ -7,9 +7,239 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================
-// ENUMS
-// ============================================
+model User {
+  id                    String                 @id @default(uuid())
+  name                  String
+  email                 String                 @unique
+  password              String
+  role                  Role                   @default(CUSTOMER)
+  active                Boolean                @default(true)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  agentBookings         Booking[]              @relation("AgentBookings")
+  customerBookings      Booking[]              @relation("CustomerBookings")
+  commissions           Commission[]
+  expensesApproved      Expense[]              @relation("ExpenseApprovedBy")
+  expensesCreated       Expense[]              @relation("ExpenseCreator")
+  expensesRejected      Expense[]              @relation("ExpenseRejectedBy")
+  expensesSubmitted     Expense[]              @relation("ExpenseSubmittedBy")
+  expensesUpdated       Expense[]              @relation("ExpenseUpdater")
+  expenseApprovalEvents ExpenseApprovalEvent[]
+  incomesCreated        Income[]               @relation("IncomeCreator")
+  incomesUpdated        Income[]               @relation("IncomeUpdater")
+  purchasesCreated      Purchase[]             @relation("PurchaseCreator")
+  purchasesUpdated      Purchase[]             @relation("PurchaseUpdater")
+
+  @@index([email])
+  @@index([role])
+}
+
+model Glamp {
+  id            String      @id @default(uuid())
+  name          String
+  description   String?
+  pricePerNight Int
+  maxGuests     Int
+  status        GlampStatus @default(ACTIVE)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  amenities     String[]    @default([])
+  features      String[]    @default([])
+  imageUrl      String?
+  isTest        Boolean     @default(false)
+  availability  Boolean     @default(true)
+  bookings      Booking[]
+  bookingItems  BookingItem[]
+
+  @@index([status])
+  @@index([isTest])
+  @@index([availability])
+}
+
+model Booking {
+  id           String        @id @default(uuid())
+  checkInDate  DateTime
+  checkOutDate DateTime
+  guests       Int           @default(1)
+  totalAmount  Int
+  status       BookingStatus @default(PENDING)
+  customerId   String
+  agentId      String?
+  glampId      String
+  customerName String        @default("Unknown")
+  glampName    String        @default("Unknown")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  agent        User?         @relation("AgentBookings", fields: [agentId], references: [id])
+  customer     User          @relation("CustomerBookings", fields: [customerId], references: [id], onDelete: Cascade)
+  glamp        Glamp         @relation(fields: [glampId], references: [id], onDelete: Cascade)
+  items        BookingItem[]
+  commission   Commission?
+  incomes      Income[]
+
+  @@index([customerId])
+  @@index([agentId])
+  @@index([glampId])
+  @@index([status])
+  @@index([checkInDate])
+}
+
+model BookingItem {
+  id        String   @id @default(uuid())
+  bookingId String
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  glampId   String
+  glamp     Glamp    @relation(fields: [glampId], references: [id])
+  price     Int      // Snapshot price at booking time
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([bookingId])
+  @@index([glampId])
+}
+
+model Commission {
+  id        String           @id @default(uuid())
+  amount    Int
+  agentId   String
+  bookingId String           @unique
+  createdAt DateTime         @default(now())
+  status    CommissionStatus @default(UNPAID)
+  agent     User             @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  booking   Booking          @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([bookingId])
+  @@index([status])
+}
+
+model ExpenseCategory {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  expenses    Expense[]
+
+  @@index([active])
+  @@index([name])
+}
+
+model Expense {
+  id              String                 @id @default(uuid())
+  title           String
+  description     String?
+  amount          Int
+  date            DateTime               @default(now())
+  vendor          String?
+  receiptUrl      String?
+  categoryId      String?
+  createdById     String
+  updatedById     String?
+  deletedAt       DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  approvalComment String?
+  approvedAt      DateTime?
+  approvedById    String?
+  rejectedAt      DateTime?
+  rejectedById    String?
+  rejectionReason String?
+  status          ExpenseStatus          @default(DRAFT)
+  submittedAt     DateTime?
+  submittedById   String?
+  approvedBy      User?                  @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
+  category        ExpenseCategory?       @relation(fields: [categoryId], references: [id])
+  createdBy       User                   @relation("ExpenseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  rejectedBy      User?                  @relation("ExpenseRejectedBy", fields: [rejectedById], references: [id])
+  submittedBy     User?                  @relation("ExpenseSubmittedBy", fields: [submittedById], references: [id])
+  updatedBy       User?                  @relation("ExpenseUpdater", fields: [updatedById], references: [id])
+  approvalEvents  ExpenseApprovalEvent[]
+
+  @@index([categoryId])
+  @@index([createdById])
+  @@index([status])
+  @@index([date])
+  @@index([deletedAt])
+  @@index([submittedAt])
+  @@index([approvedAt])
+}
+
+model ExpenseApprovalEvent {
+  id            String                @id @default(uuid())
+  action        ExpenseApprovalAction
+  fromStatus    ExpenseStatus?
+  toStatus      ExpenseStatus
+  comment       String?
+  expenseId     String
+  performedById String
+  createdAt     DateTime              @default(now())
+  expense       Expense               @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  performedBy   User                  @relation(fields: [performedById], references: [id], onDelete: SetNull)
+
+  @@index([expenseId])
+  @@index([performedById])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model Income {
+  id           String       @id @default(uuid())
+  amount       Int
+  currency     String       @default("USD")
+  dateReceived DateTime     @default(now())
+  source       IncomeSource
+  status       IncomeStatus @default(CONFIRMED)
+  reference    String?
+  notes        String?
+  bookingId    String?
+  createdById  String
+  updatedById  String?
+  deletedAt    DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  booking      Booking?     @relation(fields: [bookingId], references: [id])
+  createdBy    User         @relation("IncomeCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy    User?        @relation("IncomeUpdater", fields: [updatedById], references: [id])
+
+  @@index([bookingId])
+  @@index([dateReceived])
+  @@index([source])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([createdById])
+}
+
+model Purchase {
+  id              String                @id @default(uuid())
+  amount          Int
+  currency        String                @default("USD")
+  purchaseDate    DateTime
+  vendorName      String
+  status          PurchaseStatus        @default(DRAFT)
+  reference       String?
+  notes           String?
+  createdById     String
+  updatedById     String?
+  deletedAt       DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  paymentStatus   PurchasePaymentStatus @default(UNPAID)
+  paidAmountCents Int                   @default(0)
+  dueDate         DateTime?
+  paidAt          DateTime?
+  createdBy       User                  @relation("PurchaseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy       User?                 @relation("PurchaseUpdater", fields: [updatedById], references: [id])
+
+  @@index([purchaseDate])
+  @@index([vendorName])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([deletedAt])
+  @@index([createdById])
+}
 
 enum Role {
   SUPER_ADMIN
@@ -75,328 +305,4 @@ enum PurchasePaymentStatus {
   UNPAID
   PARTIAL
   PAID
-}
-
-// ============================================
-// USER MODEL
-// ============================================
-// Represents all system users: customers, agents, admins, super admins
-// 
-// CUSTOMER Lifecycle:
-// - CUSTOMER users are created dynamically during booking flow
-// - They do NOT require login credentials (business entities, not operators)
-// - CUSTOMER deletion is allowed and will CASCADE to their bookings
-// - Only SUPER_ADMIN, ADMIN, and AGENT are seeded with credentials
-model User {
-  id       String  @id @default(uuid())
-  name     String
-  email    String  @unique
-  password String // Hashed with bcrypt
-  role     Role    @default(CUSTOMER)
-  active   Boolean @default(true)
-
-  // Relations
-  customerBookings Booking[]    @relation("CustomerBookings") // Bookings made as customer
-  agentBookings    Booking[]    @relation("AgentBookings") // Bookings referred as agent
-  commissions      Commission[] // Commissions earned as agent
-
-  // Finance relations
-  expensesCreated   Expense[] @relation("ExpenseCreator")
-  expensesUpdated   Expense[] @relation("ExpenseUpdater")
-  expensesSubmitted Expense[] @relation("ExpenseSubmittedBy")
-  expensesApproved  Expense[] @relation("ExpenseApprovedBy")
-  expensesRejected  Expense[] @relation("ExpenseRejectedBy")
-
-  // Expense approval events
-  expenseApprovalEvents ExpenseApprovalEvent[]
-
-  // Income relations
-  incomesCreated Income[] @relation("IncomeCreator")
-  incomesUpdated Income[] @relation("IncomeUpdater")
-
-  // Purchase relations
-  purchasesCreated Purchase[] @relation("PurchaseCreator")
-  purchasesUpdated Purchase[] @relation("PurchaseUpdater")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([email])
-  @@index([role])
-}
-
-// ============================================
-// GLAMP MODEL
-// ============================================
-// Represents a glamping property available for booking
-model Glamp {
-  id            String      @id @default(uuid())
-  name          String
-  description   String?
-  pricePerNight Int // Price in smallest currency unit (e.g., cents)
-  maxGuests     Int
-  status        GlampStatus @default(ACTIVE)
-  availability  Boolean     @default(true) // Whether glamp is available for booking
-  features      String[]    @default([]) // List of features (e.g., ["WiFi", "Pool"])
-  amenities     String[]    @default([]) // List of amenities (e.g., ["
-  imageUrl      String? // URL or path to glamp image (e.g., "/images/glamps/glamp1.jpg")
-  isTest        Boolean     @default(false) // If true, hidden from customer site (admin only)
-
-  // Relations
-  bookings Booking[] // All bookings for this glamp
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([status])
-  @@index([isTest])
-  @@index([availability])
-}
-
-// ============================================
-// BOOKING MODEL
-// ============================================
-// Represents a reservation made by a customer for a glamp
-model Booking {
-  id           String        @id @default(uuid())
-  checkInDate  DateTime
-  checkOutDate DateTime
-  guests       Int           @default(1) // Number of guests
-  totalAmount  Int // Total booking amount in smallest currency unit
-  status       BookingStatus @default(PENDING)
-
-  // Relations
-  customer   User   @relation("CustomerBookings", fields: [customerId], references: [id], onDelete: Cascade)
-  customerId String
-
-  agent   User?   @relation("AgentBookings", fields: [agentId], references: [id], onDelete: SetNull)
-  agentId String? // Optional: agent who referred this booking
-
-  glamp   Glamp  @relation(fields: [glampId], references: [id], onDelete: Cascade)
-  glampId String
-
-  // Snapshot fields for admin readability (denormalized for performance)
-  customerName String @default("Unknown") // Snapshot of customer name at booking time
-  glampName    String @default("Unknown") // Snapshot of glamp name at booking time
-
-  commission Commission? // Commission generated for this booking (if agent involved)
-  incomes    Income[] // Income records linked to this booking
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([customerId])
-  @@index([agentId])
-  @@index([glampId])
-  @@index([status])
-  @@index([checkInDate])
-}
-
-// ============================================
-// COMMISSION MODEL
-// ============================================
-// Represents commission earned by an agent for referring a booking
-model Commission {
-  id     String           @id @default(uuid())
-  amount Int // Commission amount in smallest currency unit
-  status CommissionStatus @default(UNPAID) // Payment status
-
-  // Relations
-  agent   User   @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  agentId String
-
-  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  bookingId String  @unique // One commission per booking
-
-  createdAt DateTime @default(now())
-
-  @@index([agentId])
-  @@index([bookingId])
-  @@index([status])
-}
-
-// ============================================
-// EXPENSE CATEGORY MODEL
-// ============================================
-// Represents categories for organizing expenses
-model ExpenseCategory {
-  id          String  @id @default(uuid())
-  name        String  @unique
-  description String?
-  active      Boolean @default(true)
-
-  // Relations
-  expenses Expense[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([active])
-  @@index([name])
-}
-
-// ============================================
-// EXPENSE MODEL
-// ============================================
-// Represents business expenses with audit trail and soft delete support
-model Expense {
-  id          String        @id @default(uuid())
-  title       String
-  description String?
-  amount      Int // Amount in smallest currency unit (e.g., cents)
-  date        DateTime      @default(now())
-  vendor      String?
-  receiptUrl  String?
-  status      ExpenseStatus @default(DRAFT)
-
-  // Relations
-  category   ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  categoryId String?
-
-  createdBy   User   @relation("ExpenseCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdById String
-
-  updatedBy   User?   @relation("ExpenseUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
-  updatedById String?
-
-  // Submission workflow
-  submittedAt   DateTime?
-  submittedBy   User?     @relation("ExpenseSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
-  submittedById String?
-
-  // Approval workflow
-  approvedAt      DateTime?
-  approvedBy      User?     @relation("ExpenseApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
-  approvedById    String?
-  approvalComment String?
-
-  // Rejection workflow
-  rejectedAt      DateTime?
-  rejectedBy      User?     @relation("ExpenseRejectedBy", fields: [rejectedById], references: [id], onDelete: SetNull)
-  rejectedById    String?
-  rejectionReason String?
-
-  // Soft delete
-  deletedAt DateTime?
-
-  // Approval history
-  approvalEvents ExpenseApprovalEvent[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([categoryId])
-  @@index([createdById])
-  @@index([status])
-  @@index([date])
-  @@index([deletedAt])
-  @@index([submittedAt])
-  @@index([approvedAt])
-}
-
-// ============================================
-// EXPENSE APPROVAL EVENT MODEL
-// ============================================
-// Audit trail for expense approval workflow actions
-model ExpenseApprovalEvent {
-  id         String                @id @default(uuid())
-  action     ExpenseApprovalAction
-  fromStatus ExpenseStatus?
-  toStatus   ExpenseStatus
-  comment    String?
-
-  // Relations
-  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
-  expenseId String
-
-  performedBy   User   @relation(fields: [performedById], references: [id], onDelete: SetNull)
-  performedById String
-
-  createdAt DateTime @default(now())
-
-  @@index([expenseId])
-  @@index([performedById])
-  @@index([action])
-  @@index([createdAt])
-}
-
-// ============================================
-// INCOME MODEL
-// ============================================
-// Represents income/revenue received by the business
-// Tracks payments from bookings and manual income entries
-model Income {
-  id           String       @id @default(uuid())
-  amount       Int // Amount in smallest currency unit (e.g., cents)
-  currency     String       @default("USD")
-  dateReceived DateTime     @default(now())
-  source       IncomeSource
-  status       IncomeStatus @default(CONFIRMED)
-  reference    String? // External reference (invoice number, payment ID, etc.)
-  notes        String?
-
-  // Relations
-  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
-  bookingId String?
-
-  createdBy   User   @relation("IncomeCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdById String
-
-  updatedBy   User?   @relation("IncomeUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
-  updatedById String?
-
-  // Soft delete
-  deletedAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([bookingId])
-  @@index([dateReceived])
-  @@index([source])
-  @@index([status])
-  @@index([deletedAt])
-  @@index([createdById])
-}
-
-// ============================================
-// PURCHASE MODEL
-// ============================================
-// Represents purchases made by the business
-// Tracks vendor purchases and procurement expenses
-model Purchase {
-  id           String         @id @default(uuid())
-  amount       Int // Amount in smallest currency unit (e.g., cents)
-  currency     String         @default("USD")
-  purchaseDate DateTime
-  vendorName   String
-  status       PurchaseStatus @default(DRAFT)
-  reference    String? // External reference (PO number, invoice number, etc.)
-  notes        String?
-
-  // Payment tracking for Payables V1
-  paymentStatus    PurchasePaymentStatus @default(UNPAID)
-  paidAmountCents  Int                   @default(0) // Amount paid so far in cents
-  dueDate          DateTime?
-  paidAt           DateTime?
-
-  // Relations
-  createdBy   User   @relation("PurchaseCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdById String
-
-  updatedBy   User?   @relation("PurchaseUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
-  updatedById String?
-
-  // Soft delete
-  deletedAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([purchaseDate])
-  @@index([vendorName])
-  @@index([status])
-  @@index([paymentStatus])
-  @@index([deletedAt])
-  @@index([createdById])
 }

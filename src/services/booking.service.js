@@ -16,25 +16,27 @@ const isValidUUID = (id) => {
  * Find or create a CUSTOMER user
  */
 const findOrCreateCustomer = async (name, email) => {
-  // Check if customer already exists
-  let customer = await prisma.user.findUnique({
-    where: { email },
-  });
+  // If email is provided, check if customer already exists
+  if (email) {
+    let customer = await prisma.user.findUnique({
+      where: { email },
+    });
 
-  if (customer) {
-    // If exists but not a customer, throw error
-    if (customer.role !== 'CUSTOMER') {
-      throw new ValidationError('This email is already registered with a different role');
+    if (customer) {
+      // If exists but not a customer, throw error
+      if (customer.role !== 'CUSTOMER') {
+        throw new ValidationError('This email is already registered with a different role');
+      }
+      return customer;
     }
-    return customer;
   }
 
   // Create new CUSTOMER user (no password needed - business entity)
   const tempPassword = await hashPassword('customer-temp-' + Date.now());
-  customer = await prisma.user.create({
+  const customer = await prisma.user.create({
     data: {
       name,
-      email,
+      email: email || null, // Allow null email
       password: tempPassword, // Required field but not used for CUSTOMER login
       role: 'CUSTOMER',
       active: true,
@@ -45,7 +47,8 @@ const findOrCreateCustomer = async (name, email) => {
 };
 
 /**
- * Check availability for a glamp in a given date range
+ * Check availability for glamp(s) in a given date range
+ * Supports single glamp ID or array of glamp IDs
  * 
  * Date Semantics:
  * - checkIn: Guest arrives on this date (inclusive, start-of-day)
@@ -58,15 +61,15 @@ const findOrCreateCustomer = async (name, email) => {
  * 
  * Overlap Logic:
  * - Two bookings conflict if: (existing.checkIn < newCheckOut) AND (existing.checkOut > newCheckIn)
- * - This handles all overlap scenarios: partial, complete, and nested overlaps
+ * - Checks both primary glampId and booking items for multi-glamp bookings
  * 
- * @param {string} glampId - Glamp ID to check
+ * @param {string|string[]} glampIdOrIds - Glamp ID or array of Glamp IDs to check
  * @param {Date} checkIn - Check-in date (will be normalized to start-of-day UTC)
  * @param {Date} checkOut - Check-out date (will be normalized to start-of-day UTC, exclusive)
  * @param {string} [excludeBookingId] - Optional: booking ID to exclude from conflict check (for updates)
  * @returns {Promise<{available: boolean, conflictingCount: number, conflicts: Array}>}
  */
-export const checkAvailability = async (glampId, checkIn, checkOut, excludeBookingId = null) => {
+export const checkAvailability = async (glampIdOrIds, checkIn, checkOut, excludeBookingId = null) => {
   // Normalize dates to start-of-day (UTC midnight) for consistent comparisons
   const normalizeToStartOfDay = (date) => {
     const normalized = new Date(date);
@@ -74,9 +77,18 @@ export const checkAvailability = async (glampId, checkIn, checkOut, excludeBooki
     return normalized;
   };
 
+  // Handle single ID or array of IDs
+  const glampIds = Array.isArray(glampIdOrIds) ? glampIdOrIds : [glampIdOrIds];
+
   // Validate inputs
-  if (!isValidUUID(glampId)) {
-    throw new ValidationError('Invalid glamp ID format');
+  if (glampIds.length === 0) {
+    throw new ValidationError('At least one glamp ID is required');
+  }
+
+  for (const id of glampIds) {
+    if (!isValidUUID(id)) {
+      throw new ValidationError(`Invalid glamp ID format: ${id}`);
+    }
   }
 
   if (!(checkIn instanceof Date) || isNaN(checkIn.getTime())) {
@@ -95,24 +107,31 @@ export const checkAvailability = async (glampId, checkIn, checkOut, excludeBooki
   const normalizedCheckIn = normalizeToStartOfDay(checkIn);
   const normalizedCheckOut = normalizeToStartOfDay(checkOut);
 
-  // Verify glamp exists
-  const glamp = await prisma.glamp.findUnique({
-    where: { id: glampId },
+  // Verify glamps exist
+  const glamps = await prisma.glamp.findMany({
+    where: { id: { in: glampIds } },
+    select: { id: true, name: true }
   });
 
-  if (!glamp) {
-    throw new NotFoundError('Glamp not found');
+  if (glamps.length !== glampIds.length) {
+    throw new NotFoundError('One or more glamps not found');
   }
 
   // Find conflicting bookings
-  // A booking conflicts if date ranges overlap:
-  // overlap if (existing.checkIn < newCheckOut) AND (existing.checkOut > newCheckIn)
+  // A booking conflicts if date ranges overlap AND (glampId matches OR items contain glampId)
   const where = {
-    glampId,
-    status: {
-      in: ['CONFIRMED', 'PENDING'], // Only count active bookings
-    },
     AND: [
+      {
+        OR: [
+          { glampId: { in: glampIds } },
+          { items: { some: { glampId: { in: glampIds } } } }
+        ]
+      },
+      {
+        status: {
+          in: ['CONFIRMED', 'PENDING'], // Only count active bookings
+        }
+      },
       { checkInDate: { lt: normalizedCheckOut } },
       { checkOutDate: { gt: normalizedCheckIn } },
     ],
@@ -120,7 +139,7 @@ export const checkAvailability = async (glampId, checkIn, checkOut, excludeBooki
 
   // Exclude a specific booking (useful for updates)
   if (excludeBookingId && isValidUUID(excludeBookingId)) {
-    where.id = { not: excludeBookingId };
+    where.AND.push({ id: { not: excludeBookingId } });
   }
 
   const conflictingBookings = await prisma.booking.findMany({
@@ -130,6 +149,14 @@ export const checkAvailability = async (glampId, checkIn, checkOut, excludeBooki
       checkInDate: true,
       checkOutDate: true,
       status: true,
+      glampId: true,
+      glampName: true,
+      items: {
+        select: {
+          glampId: true,
+          glamp: { select: { name: true } }
+        }
+      }
     },
     orderBy: { checkInDate: 'asc' },
   });
@@ -139,12 +166,25 @@ export const checkAvailability = async (glampId, checkIn, checkOut, excludeBooki
   return {
     available,
     conflictingCount: conflictingBookings.length,
-    conflicts: conflictingBookings.map(b => ({
-      bookingId: b.id,
-      checkIn: b.checkInDate.toISOString().split('T')[0], // YYYY-MM-DD format
-      checkOut: b.checkOutDate.toISOString().split('T')[0], // YYYY-MM-DD format
-      status: b.status,
-    })),
+    conflicts: conflictingBookings.map(b => {
+      // Determine which of the requested glamps are involved in this conflict
+      const involvedGlamps = [];
+      if (glampIds.includes(b.glampId)) involvedGlamps.push({ id: b.glampId, name: b.glampName });
+      
+      b.items.forEach(item => {
+        if (glampIds.includes(item.glampId) && !involvedGlamps.find(g => g.id === item.glampId)) {
+          involvedGlamps.push({ id: item.glampId, name: item.glamp.name });
+        }
+      });
+
+      return {
+        bookingId: b.id,
+        checkIn: b.checkInDate.toISOString().split('T')[0], // YYYY-MM-DD format
+        checkOut: b.checkOutDate.toISOString().split('T')[0], // YYYY-MM-DD format
+        status: b.status,
+        involvedGlamps
+      };
+    }),
     // Additional debugging info
     queriedRange: {
       checkIn: normalizedCheckIn.toISOString().split('T')[0],
@@ -163,6 +203,7 @@ export const createBooking = async (bookingData) => {
     customerEmail,
     customerPhone, // Optional phone number
     glampId, 
+    glampIds, // Support multiple glamps
     checkInDate,
     checkOutDate,
     numberOfGuests, // Accept both formats
@@ -171,34 +212,49 @@ export const createBooking = async (bookingData) => {
   } = bookingData;
 
   // Support both 'guests' and 'numberOfGuests'
-  const guestCount = guests || numberOfGuests;
+  const guestCount = guests || numberOfGuests || 1;
 
-  // Validate required fields
-  if (!customerName || !customerEmail) {
-    throw new ValidationError('Please provide your name and email address');
+  // Resolve glamp IDs
+  let targetGlampIds = [];
+  if (glampIds && Array.isArray(glampIds) && glampIds.length > 0) {
+    targetGlampIds = glampIds;
+  } else if (glampId) {
+    targetGlampIds = [glampId];
+  } else {
+    throw new ValidationError('Please select at least one glamp to book');
   }
 
-  if (!glampId) {
-    throw new ValidationError('Please select a glamp to book');
+  // Validate number of glamps (1..4)
+  if (targetGlampIds.length > 4) {
+    throw new ValidationError('You can book a maximum of 4 glamps');
+  }
+
+  // Validate required fields
+  if (!customerName) {
+    throw new ValidationError('Please provide your name');
   }
 
   if (!checkInDate || !checkOutDate) {
     throw new ValidationError('Please select check-in and check-out dates');
   }
 
-  // Validate UUID format
-  if (!isValidUUID(glampId)) {
-    throw new ValidationError('Invalid glamp selection. Please try again');
+  // Validate UUID format for all glamps
+  for (const id of targetGlampIds) {
+    if (!isValidUUID(id)) {
+      throw new ValidationError('Invalid glamp selection. Please try again');
+    }
   }
 
   if (agentId && !isValidUUID(agentId)) {
     throw new ValidationError('Invalid agent reference');
   }
 
-  // Validate email format
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(customerEmail)) {
-    throw new ValidationError('Please provide a valid email address');
+  // Validate email format if provided
+  if (customerEmail) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(customerEmail)) {
+      throw new ValidationError('Please provide a valid email address');
+    }
   }
 
   // Parse and validate dates
@@ -228,26 +284,30 @@ export const createBooking = async (bookingData) => {
     throw new ValidationError('Booking must be at least 1 night');
   }
 
-  // Check if glamp exists and is active
-  const glamp = await prisma.glamp.findUnique({
-    where: { id: glampId },
+  // Validate Guests Capacity
+  // Rule: Max capacity based on selected glamps
+  // Fetch all glamps to get prices and details
+  const glamps = await prisma.glamp.findMany({
+    where: { id: { in: targetGlampIds } }
   });
 
-  if (!glamp) {
-    throw new NotFoundError('The selected glamp is no longer available');
+  if (glamps.length !== targetGlampIds.length) {
+    throw new NotFoundError('One or more selected glamps are no longer available');
   }
 
-  if (glamp.status !== 'ACTIVE') {
-    throw new ValidationError('This glamp is currently unavailable for booking. Please choose another one');
+  const maxCapacity = glamps.reduce((sum, glamp) => sum + glamp.maxGuests, 0);
+  if (guestCount > maxCapacity) {
+    throw new ValidationError(`Selected glamps accommodate max ${maxCapacity} guests. You selected ${targetGlampIds.length} glamp(s).`);
   }
 
-  // Validate number of guests
-  if (guestCount && guestCount > glamp.maxGuests) {
-    throw new ValidationError(`This glamp can accommodate a maximum of ${glamp.maxGuests} guest${glamp.maxGuests > 1 ? 's' : ''}. Please reduce the number of guests or choose a larger glamp`);
+  // Check status and calculate total amount
+  let totalAmount = 0;
+  for (const glamp of glamps) {
+    if (glamp.status !== 'ACTIVE') {
+      throw new ValidationError(`Glamp "${glamp.name}" is currently unavailable. Please choose another one.`);
+    }
+    totalAmount += glamp.pricePerNight * nights;
   }
-
-  // Calculate total amount
-  const totalAmount = glamp.pricePerNight * nights;
 
   // Find or create customer
   const customer = await findOrCreateCustomer(customerName, customerEmail);
@@ -265,9 +325,8 @@ export const createBooking = async (bookingData) => {
 
   // Log booking creation attempt
   console.log('📝 Creating booking:', {
-    glampId,
-    glampName: glamp.name,
-    customerEmail,
+    glampIds: targetGlampIds,
+    customerEmail: customerEmail || 'No Email',
     checkIn: checkIn.toISOString(),
     checkOut: checkOut.toISOString(),
     nights,
@@ -275,45 +334,48 @@ export const createBooking = async (bookingData) => {
   });
 
   // TRANSACTION: Re-check availability and create booking atomically
-  // This prevents race conditions where two requests pass the initial check
   const booking = await prisma.$transaction(async (tx) => {
-    // Re-check conflicts inside transaction to prevent race conditions
-    const conflicts = await tx.booking.findMany({
-      where: {
-        glampId,
-        status: {
-          in: ['CONFIRMED', 'PENDING'],
+    // Re-check conflicts for ALL glamps
+    for (const gid of targetGlampIds) {
+      const conflicts = await tx.booking.findMany({
+        where: {
+          glampId: gid, // Check legacy field for now, or check items? 
+                        // Wait, if we use items, we should check items. 
+                        // BUT existing bookings use glampId.
+                        // New bookings will use items AND glampId (primary).
+                        // So checking glampId is mostly safe for old bookings.
+                        // For NEW bookings with multiple items, we need to check if ANY booking has this glamp as an item.
+                        // However, since we haven't migrated existing bookings to items, 
+                        // and we populate glampId for new bookings (at least one),
+                        // we need to be careful.
+                        // Ideally, we check:
+                        // Booking where glampId = gid OR items contains gid
+          OR: [
+            { glampId: gid },
+            { items: { some: { glampId: gid } } }
+          ],
+          status: {
+            in: ['CONFIRMED', 'PENDING'],
+          },
+          AND: [
+            { checkInDate: { lt: checkOut } },
+            { checkOutDate: { gt: checkIn } },
+          ],
         },
-        AND: [
-          { checkInDate: { lt: checkOut } },
-          { checkOutDate: { gt: checkIn } },
-        ],
-      },
-      select: {
-        id: true,
-        checkInDate: true,
-        checkOutDate: true,
-        status: true,
-      },
-    });
+      });
 
-    // If conflicts found, throw error (transaction will rollback)
-    if (conflicts.length > 0) {
-      console.log('❌ Race condition detected - conflict found in transaction:', {
-        glampId,
-        conflictCount: conflicts.length,
-      });
-      
-      throw new BookingConflictError({
-        available: false,
-        conflictingCount: conflicts.length,
-        conflicts: conflicts.map(b => ({
-          id: b.id,
-          checkIn: b.checkInDate.toISOString(),
-          checkOut: b.checkOutDate.toISOString(),
-          status: b.status,
-        })),
-      });
+      if (conflicts.length > 0) {
+        throw new BookingConflictError({
+          available: false,
+          conflictingCount: conflicts.length,
+          conflicts: conflicts.map(b => ({
+            id: b.id,
+            checkIn: b.checkInDate.toISOString(),
+            checkOut: b.checkOutDate.toISOString(),
+            status: b.status,
+          })),
+        });
+      }
     }
 
     // No conflicts - create booking
@@ -322,13 +384,19 @@ export const createBooking = async (bookingData) => {
         customerId: customer.id,
         customerName: customer.name, // Snapshot field
         agentId: agentId || null,
-        glampId,
-        glampName: glamp.name, // Snapshot field
+        glampId: targetGlampIds[0], // Primary glamp (for backward compatibility)
+        glampName: glamps[0].name, // Snapshot field (primary)
         checkInDate: checkIn,
         checkOutDate: checkOut,
-        guests: guestCount || 1, // Store guest count
+        guests: guestCount,
         totalAmount,
         status: 'PENDING',
+        items: {
+          create: glamps.map(g => ({
+            glampId: g.id,
+            price: g.pricePerNight
+          }))
+        }
       },
       include: {
         customer: {
@@ -352,6 +420,15 @@ export const createBooking = async (bookingData) => {
             pricePerNight: true,
           },
         },
+        items: {
+          include: {
+            glamp: {
+              select: {
+                name: true
+              }
+            }
+          }
+        }
       },
     });
   });
@@ -359,8 +436,8 @@ export const createBooking = async (bookingData) => {
   // Log successful booking creation
   console.log('✅ Booking created successfully:', {
     bookingId: booking.id,
-    customer: booking.customer.email,
-    glamp: booking.glamp.name,
+    customer: booking.customer.name,
+    glampCount: booking.items.length,
     status: booking.status,
   });
 

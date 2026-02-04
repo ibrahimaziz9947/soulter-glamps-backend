@@ -114,13 +114,26 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
  * @access Public (authenticated users: admin, agent, customer)
  */
 export const checkAvailability = asyncHandler(async (req, res) => {
-  const { glampId, checkIn, checkOut } = req.query;
+  const { glampId, glampIds, checkIn, checkOut } = req.query;
+
+  // Resolve glamp IDs from various query formats
+  let targetGlampIds = [];
+  if (glampIds) {
+    if (Array.isArray(glampIds)) {
+      targetGlampIds = glampIds;
+    } else if (typeof glampIds === 'string') {
+      // Support comma-separated list
+      targetGlampIds = glampIds.split(',').map(id => id.trim());
+    }
+  } else if (glampId) {
+    targetGlampIds = [glampId];
+  }
 
   // Validate required parameters
-  if (!glampId || !checkIn || !checkOut) {
+  if (targetGlampIds.length === 0 || !checkIn || !checkOut) {
     return res.status(400).json({
       success: false,
-      error: 'Missing required parameters: glampId, checkIn, and checkOut are required',
+      error: 'Missing required parameters: glampId (or glampIds), checkIn, and checkOut are required',
     });
   }
 
@@ -138,7 +151,7 @@ export const checkAvailability = asyncHandler(async (req, res) => {
 
   // Call service to check availability
   const availabilityData = await bookingService.checkAvailability(
-    glampId,
+    targetGlampIds,
     checkInDate,
     checkOutDate
   );
