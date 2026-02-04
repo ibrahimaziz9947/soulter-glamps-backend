@@ -229,6 +229,9 @@ export const createBooking = async (bookingData) => {
     if (targetGlampIds.length < 1 || targetGlampIds.length > 4) {
       throw new ValidationError('You can book between 1 and 4 glamps');
     }
+    if (typeof numberOfGlamps === 'number' && numberOfGlamps !== targetGlampIds.length) {
+      throw new ValidationError('numberOfGlamps must equal the number of selected glamps');
+    }
     console.log("[Booking] glampIds", targetGlampIds, "guests", guestCount, "max", targetGlampIds.length * 4);
 
     if (!customerName) {
