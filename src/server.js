@@ -113,12 +113,14 @@ const allowedOrigins =
   process.env.NODE_ENV === 'production'
     ? [
         'https://soulter-glamps.com',
+        'https://soultersglamps.com',
       ]
     : [
         'http://localhost:3000',
         'http://localhost:3001',
         'http://localhost:5173',
         'https://soulter-glamps.com',
+      'https://soultersglamps.com',
       ];
 
 app.use(
@@ -149,6 +151,11 @@ app.use(
     optionsSuccessStatus: 200,
   })
 );
+
+// Explicit preflight handlers for public booking endpoints
+app.options('/api/public/bookings', cors());
+app.options('/api/public/bookings/check-availability', cors());
+app.options('/api/bookings', cors());
 
 // Debug logs (keep these)
 console.log('🌐 Environment:', process.env.NODE_ENV);

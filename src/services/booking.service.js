@@ -15,7 +15,7 @@ const isValidUUID = (id) => {
 /**
  * Find or create a CUSTOMER user
  */
-const findOrCreateCustomer = async (name, email) => {
+const findOrCreateCustomer = async (name, email, phone) => {
   // If email is provided, check if customer already exists
   if (email) {
     let customer = await prisma.user.findUnique({
@@ -37,6 +37,7 @@ const findOrCreateCustomer = async (name, email) => {
     data: {
       name,
       email: email || null, // Allow null email
+      phone: phone || null,
       password: tempPassword, // Required field but not used for CUSTOMER login
       role: 'CUSTOMER',
       active: true,
@@ -305,7 +306,7 @@ export const createBooking = async (bookingData) => {
       totalAmount += glamp.pricePerNight * nights;
     }
 
-    const customer = await findOrCreateCustomer(customerName, customerEmail);
+  const customer = await findOrCreateCustomer(customerName, customerEmail, customerPhone);
 
     if (agentId) {
       const agent = await prisma.user.findUnique({
