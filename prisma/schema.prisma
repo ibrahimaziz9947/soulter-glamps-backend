@@ -85,6 +85,14 @@ model Booking {
   @@index([checkInDate])
 }
 
+enum BookingStatus {
+  PENDING
+  PENDING_PAYMENT
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
 model BookingItem {
   id        String   @id @default(uuid())
   bookingId String
@@ -254,12 +262,7 @@ enum GlampStatus {
   INACTIVE
 }
 
-enum BookingStatus {
-  PENDING
-  CONFIRMED
-  CANCELLED
-  COMPLETED
-}
+// BookingStatus enum defined above with PENDING_PAYMENT
 
 enum CommissionStatus {
   UNPAID

@@ -31,6 +31,19 @@ const findOrCreateCustomer = async (name, email, phone) => {
     }
   }
 
+  // If no email, try finding by phone
+  if (!email && phone) {
+    const byPhone = await prisma.user.findFirst({
+      where: { phone },
+    });
+    if (byPhone) {
+      if (byPhone.role !== 'CUSTOMER') {
+        throw new ValidationError('This phone is already registered with a different role');
+      }
+      return byPhone;
+    }
+  }
+
   // Create new CUSTOMER user (no password needed - business entity)
   const tempPassword = await hashPassword('customer-temp-' + Date.now());
   const customer = await prisma.user.create({
@@ -130,7 +143,7 @@ export const checkAvailability = async (glampIdOrIds, checkIn, checkOut, exclude
       },
       {
         status: {
-          in: ['CONFIRMED', 'PENDING'], // Only count active bookings
+          in: ['CONFIRMED', 'PENDING', 'PENDING_PAYMENT'], // Count active and payment-pending bookings
         }
       },
       { checkInDate: { lt: normalizedCheckOut } },
@@ -349,7 +362,7 @@ export const createBooking = async (bookingData) => {
           checkOutDate: checkOutDateObj,
           guests: guestCount,
           totalAmount,
-          status: 'PENDING',
+          status: 'PENDING_PAYMENT',
           ...(hasBookingItem && {
             items: {
               create: glamps.map(g => ({
