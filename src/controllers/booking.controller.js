@@ -162,6 +162,34 @@ export const checkAvailability = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * Upload payment receipt
+ * @route POST /api/bookings/:bookingId/receipt
+ * @access Public
+ */
+export const uploadReceipt = asyncHandler(async (req, res) => {
+  const { bookingId } = req.params;
+  
+  if (!req.file) {
+    return res.status(400).json({
+      success: false,
+      error: 'No file uploaded. Please select a receipt image or PDF.',
+    });
+  }
+
+  const receipt = await bookingService.uploadBookingReceipt(bookingId, req.file);
+
+  return res.status(201).json({
+    success: true,
+    message: 'Receipt uploaded successfully',
+    receipt: {
+      id: receipt.id,
+      fileUrl: receipt.fileUrl,
+      uploadedAt: receipt.uploadedAt,
+    },
+  });
+});
+
 export const checkAvailabilityPost = asyncHandler(async (req, res) => {
   const { glampId, glampIds, checkIn, checkOut } = req.body || {};
   let targetGlampIds = [];

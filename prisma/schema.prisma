@@ -77,6 +77,7 @@ model Booking {
   items        BookingItem[]
   commission   Commission?
   incomes      Income[]
+  receipts     BookingPaymentReceipt[]
 
   @@index([customerId])
   @@index([agentId])
@@ -250,6 +251,20 @@ model Purchase {
   @@index([createdById])
 }
 
+model BookingPaymentReceipt {
+  id         String   @id @default(uuid())
+  bookingId  String
+  fileUrl    String
+  fileName   String
+  mimeType   String
+  fileSize   Int
+  uploadedAt DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+}
+
 enum Role {
   SUPER_ADMIN
   ADMIN
@@ -261,8 +276,6 @@ enum GlampStatus {
   ACTIVE
   INACTIVE
 }
-
-// BookingStatus enum defined above with PENDING_PAYMENT
 
 enum CommissionStatus {
   UNPAID

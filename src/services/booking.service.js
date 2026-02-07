@@ -429,6 +429,42 @@ export const createBooking = async (bookingData) => {
 };
 
 /**
+ * Upload payment receipt for a booking
+ */
+export const uploadBookingReceipt = async (bookingId, file) => {
+  // Verify booking exists
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+  });
+
+  if (!booking) {
+    throw new NotFoundError('Booking not found');
+  }
+
+  // Check status
+  if (booking.status !== 'PENDING_PAYMENT') {
+    throw new ValidationError(`Cannot upload receipt for booking with status ${booking.status}`);
+  }
+
+  // Create receipt record
+  // Assuming fileUrl is relative path from public/uploads or similar
+  // Adjust base URL as needed based on deployment
+  const fileUrl = `/uploads/receipts/${file.filename}`;
+
+  const receipt = await prisma.bookingPaymentReceipt.create({
+    data: {
+      bookingId: booking.id,
+      fileName: file.originalname,
+      fileUrl: fileUrl,
+      mimeType: file.mimetype,
+      fileSize: file.size,
+    },
+  });
+
+  return receipt;
+};
+
+/**
  * Get all bookings with role-based filtering
  */
 export const getAllBookings = async (user) => {
