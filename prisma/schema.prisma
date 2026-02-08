@@ -49,6 +49,8 @@ model Glamp {
   imageUrl      String?
   isTest        Boolean     @default(false)
   availability  Boolean     @default(true)
+  discountEnabled Boolean   @default(false)
+  discountPercent Int?
   bookings      Booking[]
   bookingItems  BookingItem[]
 
