@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import { NotFoundError, ValidationError } from '../utils/errors.js';
+import { enhanceGlampWithPricing } from '../utils/pricing.js';
 
 /**
  * Validate UUID format
@@ -80,18 +81,23 @@ export const createGlamp = async (glampData) => {
       features,
       amenities,
       imageUrl: imageUrl || null,
-      isTest: Boolean(isTest)
+      isTest: Boolean(isTest),
+      discountEnabled: false,
+      discountPercent: null
     },
   });
 
+  const enhancedGlamp = enhanceGlampWithPricing(glamp);
+
   console.log('[GLAMP] Created glamp:', {
-    id: glamp.id,
-    name: glamp.name,
-    pricePerNightCents: glamp.pricePerNight,
-    status: glamp.status,
+    id: enhancedGlamp.id,
+    name: enhancedGlamp.name,
+    pricePerNightCents: enhancedGlamp.pricePerNight,
+    finalPrice: enhancedGlamp.finalPrice,
+    status: enhancedGlamp.status,
   });
 
-  return glamp;
+  return enhancedGlamp;
 };
 
 /**
@@ -124,11 +130,13 @@ export const getAllGlamps = async (filters = {}) => {
       amenities: true,
       status: true,
       createdAt: true,
+      discountEnabled: true,
+      discountPercent: true,
     },
     orderBy: { name: 'asc' },  // Stable alphabetical ordering
   });
 
-  return glamps;
+  return glamps.map(enhanceGlampWithPricing);
 };
 
 /**
@@ -154,7 +162,7 @@ export const getAllGlampsAdmin = async (filters = {}) => {
     orderBy: { createdAt: 'desc' },
   });
 
-  return glamps;
+  return glamps.map(enhanceGlampWithPricing);
 };
 
 /**
@@ -174,7 +182,7 @@ export const getGlampById = async (glampId) => {
     throw new NotFoundError('Glamp');
   }
 
-  return glamp;
+  return enhanceGlampWithPricing(glamp);
 };
 
 /**
@@ -216,13 +224,15 @@ export const updateGlamp = async (glampId, updates) => {
   if (updates.status !== undefined) updateData.status = updates.status;
   if (updates.imageUrl !== undefined) updateData.imageUrl = updates.imageUrl || null;
   if (updates.isTest !== undefined) updateData.isTest = Boolean(updates.isTest);
+  if (updates.discountEnabled !== undefined) updateData.discountEnabled = Boolean(updates.discountEnabled);
+  if (updates.discountPercent !== undefined) updateData.discountPercent = updates.discountPercent ? parseInt(updates.discountPercent) : null;
 
   const updatedGlamp = await prisma.glamp.update({
     where: { id: glampId },
     data: updateData,
   });
 
-  return updatedGlamp;
+  return enhanceGlampWithPricing(updatedGlamp);
 };
 
 /**

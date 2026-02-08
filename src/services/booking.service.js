@@ -3,6 +3,7 @@ import { AppError, NotFoundError, ValidationError, ForbiddenError, BookingConfli
 import { createCommissionForBooking } from './commission.service.js';
 import { postBookingToFinance } from './financeIntegration.service.js';
 import { hashPassword } from '../utils/hash.js';
+import { calculateGlampPrice } from '../utils/pricing.js';
 
 /**
  * Validate UUID format
@@ -316,7 +317,8 @@ export const createBooking = async (bookingData) => {
       if (glamp.status !== 'ACTIVE') {
         throw new ValidationError(`Glamp "${glamp.name}" is currently unavailable. Please choose another one.`);
       }
-      totalAmount += glamp.pricePerNight * nights;
+      const finalPrice = calculateGlampPrice(glamp);
+      totalAmount += finalPrice * nights;
     }
 
   const customer = await findOrCreateCustomer(customerName, customerEmail, customerPhone);
@@ -367,7 +369,7 @@ export const createBooking = async (bookingData) => {
             items: {
               create: glamps.map(g => ({
                 glampId: g.id,
-                price: g.pricePerNight
+                price: calculateGlampPrice(g)
               }))
             }
           }),
