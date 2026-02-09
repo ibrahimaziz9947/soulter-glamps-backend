@@ -85,3 +85,26 @@ export const assignAgent = asyncHandler(async (req, res) => {
     data: booking,
   });
 });
+
+export const getBookingReceipt = asyncHandler(async (req, res) => {
+  const { bookingId } = req.params;
+  const receipt = await adminBookingService.getLatestReceipt(bookingId);
+  if (!receipt) {
+    return res.status(200).json({
+      success: true,
+      data: null,
+    });
+  }
+  const absoluteUrl = `${req.protocol}://${req.get('host')}${receipt.fileUrl}`;
+  return res.status(200).json({
+    success: true,
+    data: {
+      id: receipt.id,
+      fileUrl: absoluteUrl,
+      fileName: receipt.fileName,
+      mimeType: receipt.mimeType,
+      fileSize: receipt.fileSize,
+      uploadedAt: receipt.uploadedAt,
+    },
+  });
+});

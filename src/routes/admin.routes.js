@@ -22,5 +22,6 @@ router.get('/bookings', authRequired, requireAdmin, adminBookingController.getAl
 router.get('/bookings/:id', authRequired, requireAdmin, adminBookingController.getBookingById);
 router.patch('/bookings/:id/status', authRequired, requireAdmin, adminBookingController.updateBookingStatus);
 router.patch('/bookings/:id/assign-agent', authRequired, requireAdmin, adminBookingController.assignAgent);
+router.get('/bookings/:bookingId/receipt', authRequired, requireAdmin, adminBookingController.getBookingReceipt);
 
 export default router;

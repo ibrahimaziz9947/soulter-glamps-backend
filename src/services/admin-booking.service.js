@@ -224,6 +224,16 @@ export const updateBookingStatus = async (bookingId, newStatus) => {
   return updatedBooking;
 };
 
+export const getLatestReceipt = async (bookingId) => {
+  if (!isValidUUID(bookingId)) {
+    throw new ValidationError('Invalid booking ID format');
+  }
+  const receipt = await prisma.bookingPaymentReceipt.findFirst({
+    where: { bookingId },
+    orderBy: { uploadedAt: 'desc' },
+  });
+  return receipt;
+};
 /**
  * Assign agent to booking
  */
