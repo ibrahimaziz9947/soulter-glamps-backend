@@ -110,19 +110,18 @@ export const listPurchases = async (filters = {}) => {
     },
   });
 
-  const totalAmountCents = aggregation._sum.amount || 0;
-  const totalAmount = totalAmountCents / 100;
+  const totalAmount = aggregation._sum.amount || 0;
 
   // Build pagination metadata
   const paginationMeta = getPaginationMeta(total, pagination.page, pagination.limit);
 
-  // Normalize data to major units
+  // Normalize data (keep as major units)
   const normalizedPurchases = purchases.map(purchase => {
     const { paidAmountCents, ...rest } = purchase;
     return {
       ...rest,
-      amount: purchase.amount / 100,
-      paidAmount: paidAmountCents / 100,
+      amount: purchase.amount,
+      paidAmount: paidAmountCents,
     };
   });
 
@@ -233,14 +232,14 @@ export const createPurchase = async (payload, actor) => {
       }
     }
 
-    // Store amount as cents (convert from major units)
-    const amountCents = Math.round(payload.amount * 100);
+    // Store amount as major units (no conversion)
+    const amount = payload.amount;
     const currency = payload.currency.trim().toUpperCase();
 
     // Create purchase record with whitelisted fields only
     const purchase = await prisma.purchase.create({
       data: {
-        amount: amountCents, // Store as cents
+        amount: amount, // Store as major units
         currency,
         purchaseDate: purchaseDate,
         vendorName: payload.vendorName.trim(),
@@ -403,12 +402,12 @@ export const updatePurchase = async (id, payload, actor) => {
       }
       
       const totalAmount = updateData.amount || existingPurchase.amount;
-      const paidAmountCents = Math.round(payload.paidAmount * 100);
+      const paidAmount = payload.paidAmount;
       
-      if (paidAmountCents > totalAmount) {
+      if (paidAmount > totalAmount) {
         throw new ValidationError('Paid amount cannot exceed total purchase amount');
       }
-      updateData.paidAmountCents = paidAmountCents;
+      updateData.paidAmountCents = paidAmount;
     }
     // Removed legacy payload.paidAmountCents support to enforce Major Units consistency
 
@@ -644,7 +643,7 @@ export const getPurchasesSummary = async (filters = {}) => {
     }),
   ]);
 
-  const totalAmountCents = aggregation._sum.amount || 0;
+  const totalAmount = aggregation._sum.amount || 0;
 
   // Group by status
   const groupByStatus = await prisma.purchase.groupBy({
@@ -680,7 +679,7 @@ export const getPurchasesSummary = async (filters = {}) => {
 
   return {
     totalCount,
-    totalAmountCents,
+    totalAmount, // Major units
     totalsByStatus,
     totalsByCurrency,
   };

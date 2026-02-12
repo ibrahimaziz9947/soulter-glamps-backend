@@ -127,19 +127,18 @@ export const listIncome = async (filters = {}) => {
     },
   });
 
-  const totalAmountCents = aggregation._sum.amount || 0;
-  const totalAmount = totalAmountCents / 100;
+  const totalAmount = aggregation._sum.amount || 0;
 
   // Build pagination metadata
   const paginationMeta = getPaginationMeta(total, pagination.page, pagination.limit);
 
-  // Normalize data to major units
+  // Normalize data (keep as major units)
   const normalizedIncomes = incomes.map(income => ({
     ...income,
-    amount: income.amount / 100,
+    amount: income.amount,
     booking: income.booking ? {
       ...income.booking,
-      totalAmount: income.booking.totalAmount / 100
+      totalAmount: income.booking.totalAmount
     } : null
   }));
 
@@ -349,8 +348,8 @@ export const updateIncome = async (id, payload, actor) => {
     if (typeof payload.amount !== 'number' || payload.amount <= 0) {
       throw new ValidationError('Amount must be a positive number');
     }
-    // Store as cents (convert from major units)
-    updateData.amount = Math.round(payload.amount * 100);
+    // Store as major units (no conversion)
+    updateData.amount = payload.amount;
   }
 
   // Update currency
@@ -615,7 +614,7 @@ export const incomeSummary = async (filters = {}) => {
     }),
   ]);
 
-  const totalAmountCents = aggregation._sum.amount || 0;
+  const totalAmount = aggregation._sum.amount || 0;
 
   // Group by source
   const groupBySource = await prisma.income.groupBy({
@@ -626,8 +625,7 @@ export const incomeSummary = async (filters = {}) => {
   });
 
   const bySource = groupBySource.reduce((acc, item) => {
-    const amountCents = item._sum.amount || 0;
-    const amount = amountCents / 100;
+    const amount = item._sum.amount || 0;
     acc[item.source] = {
       count: item._count.id,
       total: amount, // Major units
@@ -645,8 +643,7 @@ export const incomeSummary = async (filters = {}) => {
   });
 
   const byStatus = groupByStatus.reduce((acc, item) => {
-    const amountCents = item._sum.amount || 0;
-    const amount = amountCents / 100;
+    const amount = item._sum.amount || 0;
     acc[item.status] = {
       count: item._count.id,
       total: amount, // Major units
@@ -654,8 +651,6 @@ export const incomeSummary = async (filters = {}) => {
     };
     return acc;
   }, {});
-
-  const totalAmount = totalAmountCents / 100;
 
   return {
     totalCount,

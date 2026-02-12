@@ -148,12 +148,12 @@ export const listPayables = async (params = {}) => {
 
     // Enrich with computed outstanding amount (Normalized to Major Units)
     const enrichedPayables = payables.map((purchase) => {
-      const outstandingCents = purchase.amount - purchase.paidAmountCents;
+      const outstanding = purchase.amount - purchase.paidAmountCents;
       return {
         ...purchase,
-        amount: purchase.amount / 100, // Major units
-        paidAmount: purchase.paidAmountCents / 100, // Major units
-        outstanding: outstandingCents / 100, // Major units
+        amount: purchase.amount, // Major units
+        paidAmount: purchase.paidAmountCents, // Major units
+        outstanding: outstanding, // Major units
         // Remove raw cents fields
         paidAmountCents: undefined,
       };
@@ -255,7 +255,7 @@ export const getPayablesSummary = async (params = {}) => {
 
     // Calculate totals
     const totalCount = purchases.length;
-    let totalOutstandingCents = 0;
+    let totalOutstanding = 0;
 
     const statusBreakdown = {
       UNPAID: { count: 0, outstanding: 0 },
@@ -266,12 +266,12 @@ export const getPayablesSummary = async (params = {}) => {
 
     purchases.forEach((purchase) => {
       const outstanding = purchase.amount - purchase.paidAmountCents;
-      totalOutstandingCents += outstanding;
+      totalOutstanding += outstanding;
 
       // Status breakdown
       if (statusBreakdown[purchase.paymentStatus]) {
         statusBreakdown[purchase.paymentStatus].count += 1;
-        statusBreakdown[purchase.paymentStatus].outstanding += (outstanding / 100);
+        statusBreakdown[purchase.paymentStatus].outstanding += outstanding;
       }
 
       // Currency breakdown
@@ -282,12 +282,12 @@ export const getPayablesSummary = async (params = {}) => {
         };
       }
       currencyBreakdown[purchase.currency].count += 1;
-      currencyBreakdown[purchase.currency].outstanding += (outstanding / 100);
+      currencyBreakdown[purchase.currency].outstanding += outstanding;
     });
 
     return {
       totalCount,
-      totalOutstanding: totalOutstandingCents / 100, // Major units
+      totalOutstanding: totalOutstanding, // Major units
       totalsByStatus: statusBreakdown,
       totalsByCurrency: currencyBreakdown,
     };
@@ -324,8 +324,8 @@ export const recordPayablePayment = async (purchaseId, amount, actor) => {
       throw new ValidationError('Payment amount must be a positive number');
     }
 
-    // Convert to cents
-    const amountCents = Math.round(amount * 100);
+    // Use amount as is (Base Units)
+    const paymentAmount = amount;
 
     // Fetch the purchase
     const purchase = await prisma.purchase.findFirst({
@@ -347,14 +347,14 @@ export const recordPayablePayment = async (purchaseId, amount, actor) => {
     }
 
     // Validate payment doesn't exceed outstanding
-    if (amountCents > outstanding) {
+    if (paymentAmount > outstanding) {
       throw new ValidationError(
-        `Payment amount (${amount}) exceeds outstanding balance (${outstanding / 100})`
+        `Payment amount (${amount}) exceeds outstanding balance (${outstanding})`
       );
     }
 
     // Calculate new paid amount and status
-    const newPaidAmount = purchase.paidAmountCents + amountCents;
+    const newPaidAmount = purchase.paidAmountCents + paymentAmount;
     const isFullyPaid = newPaidAmount === purchase.amount;
 
     const updateData = {
@@ -395,9 +395,9 @@ export const recordPayablePayment = async (purchaseId, amount, actor) => {
     // Return with computed outstanding
     return {
       ...updatedPurchase,
-      amount: updatedPurchase.amount / 100, // Major units
-      paidAmount: updatedPurchase.paidAmountCents / 100, // Major units
-      outstanding: (updatedPurchase.amount - updatedPurchase.paidAmountCents) / 100, // Major units
+      amount: updatedPurchase.amount, // Major units
+      paidAmount: updatedPurchase.paidAmountCents, // Major units
+      outstanding: (updatedPurchase.amount - updatedPurchase.paidAmountCents), // Major units
       paymentRecorded: amount, // Major units
       // Remove raw cents fields
       paidAmountCents: undefined,

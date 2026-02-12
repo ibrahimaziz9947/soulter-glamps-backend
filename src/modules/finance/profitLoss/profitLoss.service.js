@@ -238,10 +238,10 @@ export const computeProfitAndLoss = async (filters = {}) => {
     },
     summary: {
       // Return normalized to major units
-      totalIncome: totalIncomeCents / 100,
-      totalExpenses: totalExpensesCents / 100,
-      totalPurchases: totalPurchasesCents / 100,
-      netProfit: netProfitCents / 100,
+      totalIncome: totalIncomeCents,
+      totalExpenses: totalExpensesCents,
+      totalPurchases: totalPurchasesCents,
+      netProfit: netProfitCents,
       currency: currency || 'PKR',
     },
     // TEMP DEBUG: Add debug counts for verification
@@ -282,8 +282,8 @@ export const computeProfitAndLoss = async (filters = {}) => {
 
     const incomeBySource = incomeBySourceRaw.map((item) => ({
       source: item.source,
-      total: (item._sum.amount || 0) / 100, // Major units
-      totalAmount: (item._sum.amount || 0) / 100, // Major units
+      total: (item._sum.amount || 0), // Major units
+      totalAmount: (item._sum.amount || 0), // Major units
       count: item._count.id,
     }));
 
@@ -319,8 +319,8 @@ export const computeProfitAndLoss = async (filters = {}) => {
     const expensesByCategory = expensesByCategoryRaw.map((item) => ({
       categoryId: item.categoryId,
       categoryName: item.categoryId ? (categoryMap[item.categoryId] || 'Unknown') : 'Uncategorized',
-      total: (item._sum.amount || 0) / 100, // Major units
-      totalAmount: (item._sum.amount || 0) / 100, // Major units
+      total: (item._sum.amount || 0), // Major units
+      totalAmount: (item._sum.amount || 0), // Major units
       count: item._count.id,
     }));
 
@@ -334,8 +334,8 @@ export const computeProfitAndLoss = async (filters = {}) => {
 
     const purchasesByVendor = purchasesByVendorRaw.map((item) => ({
       vendorName: item.vendorName,
-      total: (item._sum.amount || 0) / 100, // Major units
-      totalAmount: (item._sum.amount || 0) / 100, // Major units
+      total: (item._sum.amount || 0), // Major units
+      totalAmount: (item._sum.amount || 0), // Major units
       count: item._count.id,
     }));
 
