@@ -2,6 +2,7 @@ import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/roles.js';
 import * as adminBookingController from '../controllers/admin-booking.controller.js';
+import * as tempFinanceResetController from '../controllers/temp-finance-reset.controller.js';
 import adminDashboardRoutes from '../modules/admin/dashboard/admin-dashboard.routes.js';
 import adminStaffRoutes from '../modules/admin/staff/admin-staff.routes.js';
 import adminBookingCreateRoutes from '../modules/admin/bookings/admin-booking.routes.js';
@@ -23,5 +24,8 @@ router.get('/bookings/:id', authRequired, requireAdmin, adminBookingController.g
 router.patch('/bookings/:id/status', authRequired, requireAdmin, adminBookingController.updateBookingStatus);
 router.patch('/bookings/:id/assign-agent', authRequired, requireAdmin, adminBookingController.assignAgent);
 router.get('/bookings/:bookingId/receipt', authRequired, requireAdmin, adminBookingController.getBookingReceipt);
+
+// TEMPORARY: Reset finance data
+router.delete('/temp-reset-finance', authRequired, requireAdmin, tempFinanceResetController.resetFinanceData);
 
 export default router;
